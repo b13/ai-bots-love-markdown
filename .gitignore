@@ -1,0 +1,4 @@
+/composer.lock
+/Build/phpunit/.phpunit.*
+/.php-cs-fixer.cache
+/.Build/
