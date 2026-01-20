@@ -1,16 +1,18 @@
 # AI Bots Love Markdown - Serve TYPO3 pages as Markdown for AI crawlers
 
-This TYPO3 extension provides an alternative Markdown representation of your pages for AI bots and crawlers,
-inspired by Dries Buytaert's concept of the "third audience" - making content accessible not just for humans
-and screen readers, but also for AI systems that consume and process web content.
+This TYPO3 extension provides an alternative Markdown representation
+of your pages for AI bots and crawlers.
+
+This makes content accessible not just for humans and screen readers,
+but also for AI systems that consume and process web content.
 
 ## Features
 
-- Renders any TYPO3 page as clean Markdown with YAML front matter
-- Multiple access methods: URL suffix, query parameter, or content negotiation via Accept header
+- Converts any TYPO3 page to Markdown on-the-fly via content negotiation
+- Works automatically with your existing page templates - no TypoScript configuration needed
+- Extracts content from `<main>` element (or `<body>` as fallback)
 - Automatic `<link rel="alternate">` tag for Markdown discovery
-- Converts HTML content elements to Markdown using league/html-to-markdown
-- Strips navigation, footer, and other non-content elements
+- Strips navigation, header, footer, and other non-content elements
 - Includes page metadata (title, dates, description, categories) as YAML front matter
 
 ## Installation
@@ -35,89 +37,90 @@ The extension provides two settings that can be configured per site (both enable
 | `ai_bots_love_markdown.enableContentNegotiation` | `true` | Enable content negotiation via `Accept: text/markdown` header |
 | `ai_bots_love_markdown.enableDiscoveryTag` | `true` | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery |
 
-To override these settings, add them to your site's `config.yaml`:
+To override these settings, add them to your site's `settings.yaml`:
 
 ```yaml
-settings:
-  ai_bots_love_markdown:
-    enableContentNegotiation: true
-    enableDiscoveryTag: false
+ai_bots_love_markdown:
+  enableContentNegotiation: true
+  enableDiscoveryTag: false
 ```
-
-### Route Enhancer (automatic)
-
-If your site has a `PageType` route enhancer configured, the extension automatically adds
-`ai-bots-love-markdown.md: 2026` to the map. No manual configuration required.
-
-### Column Positions (TypoScript)
-
-By default, the extension renders content from all column positions defined in the page's backend layout,
-with colPos 0 always rendered first.
-
-To override this behavior, configure specific columns in TypoScript:
-
-```typoscript
-markdown_page.10.colPos = 0
-# Or multiple columns:
-markdown_page.10.colPos = 0,1,2
-```
-
-Leave empty (default) to automatically use all columns from the backend layout.
 
 ## Usage
 
 ### Access Methods
 
-1. **Query parameter**: Append `?type=2026` to any page URL
-
-       https://example.com/my-page/?type=2026
-
-2. **URL suffix**: Use `/ai-bots-love-markdown.md` suffix (automatic if PageType enhancer exists)
-
-       https://example.com/my-page/ai-bots-love-markdown.md
-
-3. **Accept header**: Request with `Accept: text/markdown` header
+1. **Accept header**: Request any page with `Accept: text/markdown` header
 
        curl -H "Accept: text/markdown" https://example.com/my-page/
 
+2. **URL suffix**: Append `.md` to any page URL
+
+       https://example.com/my-page.md
+
 ### Output Format
 
-The extension outputs Markdown with YAML front matter:
+The extension outputs Markdown with YAML front matter, extracting metadata from HTML meta tags
+with fallback to TYPO3 page record data:
 
 ```markdown
 ---
-title: My Page Title
-url: https://example.com/my-page/
+title: "From og:title > <title> > page record"
+url: "From canonical URL > request URL"
+description: "From og:description > meta description > page record"
+image: "From og:image (if present)"
+author: "From meta author > page record"
 date: 2024-01-15
 modified: 2024-01-20
-description: Page description from TYPO3
+keywords:
+  - From meta keywords
 categories:
-  - Category 1
-  - Category 2
+  - From TYPO3 categories
+type: "From og:type (if present)"
+site: "From og:site_name (if present)"
+locale: "From og:locale (if present)"
 ---
 
-# My Page Title
+# Page Title
 
 Content converted to Markdown...
 ```
+
+**Metadata Priority:**
+- `title`: og:title → `<title>` tag → page record
+- `url`: canonical link → request URL
+- `description`: og:description → meta description → page record
+- `image`: og:image (if present)
+- `author`: meta author → page record
+- `date`/`modified`: page record (crdate/tstamp)
+- `keywords`: meta keywords (if present)
+- `categories`: TYPO3 sys_category (from database)
 
 ### Auto-Discovery
 
 The extension automatically adds a `<link>` tag to all HTML pages for Markdown discovery:
 
 ```html
-<link rel="alternate" type="text/markdown" href="https://example.com/my-page/?type=2026" title="Markdown version" />
+<link rel="alternate" type="text/markdown" href="https://example.com/my-page/" title="Markdown version" />
 ```
+
+### Opt-in Behavior
+
+Pages are only converted to Markdown if they contain the `<link rel="alternate" type="text/markdown">` tag.
+This means:
+- Pages without the site set enabled won't be converted
+- You can disable conversion for specific pages by disabling the discovery tag
 
 ## Technical Details
 
 ### How It Works
 
-1. A middleware handles `Accept: text/markdown` content negotiation
-2. A PAGE object with `typeNum=2026` renders the Markdown output
-3. Content elements from all backend layout columns are rendered as HTML (colPos 0 first), then converted to Markdown
-4. Navigation, footer, forms, and other non-content elements are stripped
-5. Page metadata is extracted and formatted as YAML front matter
+1. A PSR-15 middleware intercepts requests with `Accept: text/markdown` header or `.md` suffix
+2. The normal page rendering proceeds (your existing templates, TypoScript, etc.)
+3. The middleware checks if the response contains the markdown alternate link tag
+4. If present, it extracts `<main>` content (or `<body>` as fallback)
+5. The HTML is converted to Markdown using league/html-to-markdown
+6. Navigation, header, footer, and other non-content elements are stripped
+7. Page metadata is added as YAML front matter
 
 ### Response Headers
 
@@ -125,6 +128,22 @@ The Markdown response includes:
 
 - `Content-Type: text/markdown; charset=utf-8`
 - `X-Robots-Tag: noindex` (to prevent indexing of Markdown version)
+
+### Best Practices for Templates
+
+For best results, wrap your main content in a `<main>` element:
+
+```html
+<body>
+    <header>...</header>
+    <nav>...</nav>
+    <main>
+        <!-- This content will be converted to Markdown -->
+        <f:render section="Main" />
+    </main>
+    <footer>...</footer>
+</body>
+```
 
 ## License
 

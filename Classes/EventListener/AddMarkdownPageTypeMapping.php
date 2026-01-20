@@ -12,13 +12,15 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown\EventListener;
 
+use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Configuration\Event\SiteConfigurationLoadedEvent;
 
 final class AddMarkdownPageTypeMapping
 {
     private const TYPE_NUM = 2026;
-    private const SUFFIX = 'ai-bots-love-markdown.md';
+    private const SUFFIX = 'ai-bots-love.md';
 
+    #[AsEventListener(identifier: 'ai-bots-love-markdown/add-pagetype-mapping')]
     public function __invoke(SiteConfigurationLoadedEvent $event): void
     {
         $configuration = $event->getConfiguration();

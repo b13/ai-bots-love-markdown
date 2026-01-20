@@ -100,14 +100,13 @@ class HtmlToMarkdownService
 
     private function cleanupMarkdown(string $markdown): string
     {
-        // Remove excessive blank lines (more than 2 consecutive)
-        $markdown = preg_replace('/\n{3,}/', "\n\n", $markdown) ?? $markdown;
-
         // Trim whitespace from each line
         $lines = explode("\n", $markdown);
         $lines = array_map('rtrim', $lines);
         $markdown = implode("\n", $lines);
         $markdown = htmlspecialchars_decode($markdown);
+        // Remove excessive blank lines (more than 2 consecutive)
+        $markdown = preg_replace('/\n{3,}/', "\n\n", $markdown) ?? $markdown;
 
         return trim($markdown);
     }

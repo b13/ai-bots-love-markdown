@@ -21,40 +21,143 @@ final readonly class MetadataService
         protected ConnectionPool $connectionPool,
     ) {}
 
-    public function generateFrontMatter(array $pageRecord, string $pageUrl): string
+    /**
+     * Generate YAML front matter from HTML meta tags and page record
+     * Meta tags take priority, page record is used as fallback
+     */
+    public function generateFrontMatter(string $html, array $pageRecord, string $fallbackUrl): string
     {
-        $frontMatter = [
-            'title' => $pageRecord['title'] ?? '',
-            'url' => $pageUrl,
-        ];
+        // Extract metadata from HTML meta tags
+        $metaTags = $this->extractMetaTags($html);
 
-        // Add creation date
+        $frontMatter = [];
+
+        // Title: og:title > meta title > page record
+        $frontMatter['title'] = $metaTags['og:title']
+            ?? $metaTags['title']
+            ?? $pageRecord['title']
+            ?? '';
+
+        // URL: canonical > fallback URL
+        $frontMatter['url'] = $metaTags['canonical'] ?? $fallbackUrl;
+
+        // Description: og:description > meta description > page record
+        $description = $metaTags['og:description']
+            ?? $metaTags['description']
+            ?? $pageRecord['description']
+            ?? '';
+        if ($description !== '') {
+            $frontMatter['description'] = $description;
+        }
+
+        // Image: og:image
+        if (!empty($metaTags['og:image'])) {
+            $frontMatter['image'] = $metaTags['og:image'];
+        }
+
+        // Author: meta author > page record
+        $author = $metaTags['author'] ?? $pageRecord['author'] ?? '';
+        if ($author !== '') {
+            $frontMatter['author'] = $author;
+        }
+
+        // Dates from page record (no standard meta tags for these)
         if (!empty($pageRecord['crdate'])) {
             $frontMatter['date'] = date('Y-m-d', (int)$pageRecord['crdate']);
         }
-
-        // Add modification date
         if (!empty($pageRecord['tstamp'])) {
             $frontMatter['modified'] = date('Y-m-d', (int)$pageRecord['tstamp']);
         }
 
-        // Add description if available
-        if (!empty($pageRecord['description'])) {
-            $frontMatter['description'] = $pageRecord['description'];
+        // Keywords from meta tags
+        if (!empty($metaTags['keywords'])) {
+            $keywords = array_map('trim', explode(',', $metaTags['keywords']));
+            $keywords = array_filter($keywords);
+            if ($keywords !== []) {
+                $frontMatter['keywords'] = $keywords;
+            }
         }
 
-        // Add categories
+        // Categories from database
         $categories = $this->getPageCategories((int)($pageRecord['uid'] ?? 0));
-        if (!empty($categories)) {
+        if ($categories !== []) {
             $frontMatter['categories'] = $categories;
         }
 
-        // Add author for blog posts
-        if (!empty($pageRecord['author'])) {
-            $frontMatter['author'] = $pageRecord['author'];
+        // Type: og:type
+        if (!empty($metaTags['og:type'])) {
+            $frontMatter['type'] = $metaTags['og:type'];
+        }
+
+        // Site name: og:site_name
+        if (!empty($metaTags['og:site_name'])) {
+            $frontMatter['site'] = $metaTags['og:site_name'];
+        }
+
+        // Locale: og:locale
+        if (!empty($metaTags['og:locale'])) {
+            $frontMatter['locale'] = $metaTags['og:locale'];
         }
 
         return $this->formatYamlFrontMatter($frontMatter);
+    }
+
+    /**
+     * Extract meta tags from HTML
+     */
+    protected function extractMetaTags(string $html): array
+    {
+        $meta = [];
+
+        // Extract <title> tag
+        if (preg_match('/<title[^>]*>([^<]+)<\/title>/i', $html, $matches)) {
+            $meta['title'] = trim(html_entity_decode($matches[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        }
+
+        // Extract canonical URL
+        if (preg_match('/<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\'][^>]*>/i', $html, $matches)) {
+            $meta['canonical'] = $matches[1];
+        } elseif (preg_match('/<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\']canonical["\'][^>]*>/i', $html, $matches)) {
+            $meta['canonical'] = $matches[1];
+        }
+
+        // Extract meta name tags (description, keywords, author)
+        preg_match_all('/<meta[^>]+name=["\']([^"\']+)["\'][^>]+content=["\']([^"\']*)["\'][^>]*>/i', $html, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $name = strtolower($match[1]);
+            if (in_array($name, ['description', 'keywords', 'author'], true)) {
+                $meta[$name] = html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        // Also check reverse order (content before name)
+        preg_match_all('/<meta[^>]+content=["\']([^"\']*)["\'][^>]+name=["\']([^"\']+)["\'][^>]*>/i', $html, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $name = strtolower($match[2]);
+            if (in_array($name, ['description', 'keywords', 'author'], true) && !isset($meta[$name])) {
+                $meta[$name] = html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        // Extract Open Graph meta tags
+        preg_match_all('/<meta[^>]+property=["\']([^"\']+)["\'][^>]+content=["\']([^"\']*)["\'][^>]*>/i', $html, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $property = strtolower($match[1]);
+            if (str_starts_with($property, 'og:')) {
+                $meta[$property] = html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        // Also check reverse order (content before property)
+        preg_match_all('/<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']([^"\']+)["\'][^>]*>/i', $html, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $property = strtolower($match[2]);
+            if (str_starts_with($property, 'og:') && !isset($meta[$property])) {
+                $meta[$property] = html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        return $meta;
     }
 
     protected function getPageCategories(int $pageUid): array
