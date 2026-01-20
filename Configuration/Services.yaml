@@ -6,8 +6,3 @@ services:
 
   B13\AiBotsLoveMarkdown\:
     resource: '../Classes/*'
-
-  B13\AiBotsLoveMarkdown\EventListener\AddMarkdownPageTypeMapping:
-    tags:
-      - name: event.listener
-        identifier: ''
