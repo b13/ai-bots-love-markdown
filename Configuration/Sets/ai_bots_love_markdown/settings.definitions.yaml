@@ -1,0 +1,9 @@
+settings:
+  ai_bots_love_markdown.enableContentNegotiation:
+    type: bool
+    default: true
+    label: 'Enable content negotiation via Accept header'
+  ai_bots_love_markdown.enableDiscoveryTag:
+    type: bool
+    default: true
+    label: 'Add <link rel="alternate"> tag for Markdown discovery'

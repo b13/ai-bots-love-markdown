@@ -1,0 +1,16 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  B13\AiBotsLoveMarkdown\:
+    resource: '../Classes/*'
+
+  B13\AiBotsLoveMarkdown\Controller\MarkdownController:
+    public: true
+
+  B13\AiBotsLoveMarkdown\EventListener\AddMarkdownPageTypeMapping:
+    tags:
+      - name: event.listener
+        identifier: 'ai-bots-love-markdown/add-pagetype-mapping'

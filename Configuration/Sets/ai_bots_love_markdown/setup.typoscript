@@ -1,0 +1,34 @@
+# Markdown output for AI bots
+markdown_page = PAGE
+markdown_page {
+    typeNum = 2026
+
+    config {
+        forceAbsoluteUrls = 1
+        disableAllHeaderCode = 1
+        additionalHeaders.10.header = Content-Type: text/markdown; charset=utf-8
+        additionalHeaders.20.header = X-Robots-Tag: noindex
+        # Disable debug output
+        debug = 0
+    }
+
+    10 = USER
+    10.userFunc = B13\AiBotsLoveMarkdown\Controller\MarkdownController->render
+    # colPos: Comma-separated list of column positions to render
+    # Empty (default) = render all columns from the page's backend layout
+    # Example: 10.colPos = 0,1,2
+    # Note: colPos 0 is always rendered first if present in the list
+}
+
+# Add link rel="alternate" to HTML pages for Markdown discovery
+page.headerData.1736000 = TEXT
+page.headerData.1736000 {
+    if.isTrue = {$ai_bots_love_markdown.enableDiscoveryTag}
+    typolink {
+        parameter.data = page:uid
+        additionalParams = &type=2026
+        forceAbsoluteUrl = 1
+        returnLast = url
+    }
+    wrap = <link rel="alternate" type="text/markdown" href="|" title="Markdown version" />
+}
