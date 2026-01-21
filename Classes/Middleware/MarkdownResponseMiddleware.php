@@ -12,8 +12,10 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown\Middleware;
 
+use B13\AiBotsLoveMarkdown\Event\AfterMarkdownConversionEvent;
 use B13\AiBotsLoveMarkdown\Service\HtmlToMarkdownService;
 use B13\AiBotsLoveMarkdown\Service\MetadataService;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -27,10 +29,12 @@ use TYPO3\CMS\Frontend\Page\PageInformation;
 final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 {
     private const MARKDOWN_LINK_PATTERN = '/<link[^>]+rel=["\']alternate["\'][^>]+type=["\']text\/markdown["\'][^>]*>/i';
+    private const MARKDOWN_URL_SUFFIX = '/ai-bots-love.md';
 
     public function __construct(
         private HtmlToMarkdownService $htmlToMarkdownService,
         private MetadataService $metadataService,
+        private EventDispatcherInterface $eventDispatcher,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -105,7 +109,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
         // Check for /ai-bots-love.md suffix in path
         $path = $request->getUri()->getPath();
-        if (str_ends_with($path, '/ai-bots-love.md')) {
+        if (str_ends_with($path, self::MARKDOWN_URL_SUFFIX)) {
             return true;
         }
 
@@ -128,8 +132,8 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $path = $uri->getPath();
 
         // Remove /ai-bots-love.md suffix from path
-        if (str_ends_with($path, '/ai-bots-love.md')) {
-            $path = substr($path, 0, -strlen('/ai-bots-love.md'));
+        if (str_ends_with($path, self::MARKDOWN_URL_SUFFIX)) {
+            $path = substr($path, 0, -strlen(self::MARKDOWN_URL_SUFFIX));
             $uri = $uri->withPath($path);
             $request = $request->withUri($uri);
         }
@@ -148,8 +152,8 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         if ($routeResult instanceof SiteRouteResult) {
             $tail = $routeResult->getTail();
             // Remove /ai-bots-love.md suffix from tail
-            if (str_ends_with($tail, '/ai-bots-love.md')) {
-                $tail = substr($tail, 0, -strlen('/ai-bots-love.md'));
+            if (str_ends_with($tail, self::MARKDOWN_URL_SUFFIX)) {
+                $tail = substr($tail, 0, -strlen(self::MARKDOWN_URL_SUFFIX));
             }
             $routeResult = new SiteRouteResult(
                 $uri,
@@ -188,9 +192,20 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $pageTitle = $this->extractPageTitle($html, $pageRecord);
 
         // Convert HTML to Markdown
-        $markdownContent = $this->htmlToMarkdownService->convert($content, $baseUrl);
+        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl);
 
-        return $frontMatter . $pageTitle . $markdownContent;
+        // Dispatch event to allow modification of the markdown output
+        $event = $this->eventDispatcher->dispatch(
+            new AfterMarkdownConversionEvent(
+                $html,
+                $frontMatter,
+                $markdownContent,
+                $pageInformation,
+                $request,
+            )
+        );
+
+        return $event->frontMatter . $event->markdownContent;
     }
 
     private function extractPageTitle(string $html, array $pageRecord): string

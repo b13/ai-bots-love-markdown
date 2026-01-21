@@ -68,6 +68,9 @@ final readonly class MetadataService
         if (!empty($pageRecord['tstamp'])) {
             $frontMatter['modified'] = date('Y-m-d', (int)$pageRecord['tstamp']);
         }
+        if (!empty($pageRecord['SYS_LASTCHANGED'])) {
+            $frontMatter['lastUpdated'] = date('Y-m-d', (int)$pageRecord['SYS_LASTCHANGED']);
+        }
 
         // Keywords from meta tags
         if (!empty($metaTags['keywords'])) {

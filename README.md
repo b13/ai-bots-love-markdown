@@ -45,6 +45,8 @@ ai_bots_love_markdown:
   enableDiscoveryTag: false
 ```
 
+Currently, the suffix `/ai-bots-love.md` is hardcoded on purpose.
+
 ## Usage
 
 ### Access Methods
@@ -53,9 +55,9 @@ ai_bots_love_markdown:
 
        curl -H "Accept: text/markdown" https://example.com/my-page/
 
-2. **URL suffix**: Append `.md` to any page URL
+2. **URL suffix**: Append `/ai-bots-love.md` to any page URL
 
-       https://example.com/my-page.md
+       https://example.com/ai-bots-love.md
 
 ### Output Format
 
@@ -100,7 +102,7 @@ Content converted to Markdown...
 The extension automatically adds a `<link>` tag to all HTML pages for Markdown discovery:
 
 ```html
-<link rel="alternate" type="text/markdown" href="https://example.com/my-page/" title="Markdown version" />
+<link rel="alternate" type="text/markdown" href="https://example.com/my-page/ai-bots-love.md" title="Markdown version" />
 ```
 
 ### Opt-in Behavior
@@ -114,7 +116,7 @@ This means:
 
 ### How It Works
 
-1. A PSR-15 middleware intercepts requests with `Accept: text/markdown` header or `.md` suffix
+1. A PSR-15 middleware intercepts requests with `Accept: text/markdown` header or `/ai-bots-love.md` suffix
 2. The normal page rendering proceeds (your existing templates, TypoScript, etc.)
 3. The middleware checks if the response contains the markdown alternate link tag
 4. If present, it extracts `<main>` content (or `<body>` as fallback)
@@ -151,7 +153,7 @@ The extension is licensed under GPL v2+, same as the TYPO3 Core.
 
 ## Background & Authors
 
-This extension was created by b13 GmbH to enable AI systems to better consume website content.
+This extension was created by b13 GmbH in 2026 to enable AI systems to better consume website content.
 As AI crawlers become increasingly important for content discovery and processing, providing
 a clean Markdown representation helps ensure your content is accurately understood and indexed
 by AI systems.
