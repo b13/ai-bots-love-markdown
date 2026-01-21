@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace B13\AiBotsLoveMarkdown\Middleware;
 
 use B13\AiBotsLoveMarkdown\Event\AfterMarkdownConversionEvent;
+use B13\AiBotsLoveMarkdown\MarkdownPageType;
 use B13\AiBotsLoveMarkdown\Service\HtmlToMarkdownService;
 use B13\AiBotsLoveMarkdown\Service\MetadataService;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -29,7 +30,6 @@ use TYPO3\CMS\Frontend\Page\PageInformation;
 final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 {
     private const MARKDOWN_LINK_PATTERN = '/<link[^>]+rel=["\']alternate["\'][^>]+type=["\']text\/markdown["\'][^>]*>/i';
-    private const MARKDOWN_URL_SUFFIX = '/ai-bots-love.md';
 
     public function __construct(
         private HtmlToMarkdownService $htmlToMarkdownService,
@@ -91,7 +91,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
     {
         // Check for type=2026 query parameter
         $queryParams = $request->getQueryParams();
-        if (isset($queryParams['type']) && (int)$queryParams['type'] === 2026) {
+        if (isset($queryParams['type']) && (int)$queryParams['type'] === MarkdownPageType::TYPE_NUM) {
             return true;
         }
 
@@ -109,7 +109,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
         // Check for /ai-bots-love.md suffix in path
         $path = $request->getUri()->getPath();
-        if (str_ends_with($path, self::MARKDOWN_URL_SUFFIX)) {
+        if (str_ends_with($path, '/' . MarkdownPageType::SUFFIX)) {
             return true;
         }
 
@@ -132,8 +132,8 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $path = $uri->getPath();
 
         // Remove /ai-bots-love.md suffix from path
-        if (str_ends_with($path, self::MARKDOWN_URL_SUFFIX)) {
-            $path = substr($path, 0, -strlen(self::MARKDOWN_URL_SUFFIX));
+        if (str_ends_with($path, '/' . MarkdownPageType::SUFFIX)) {
+            $path = substr($path, 0, -strlen('/' . MarkdownPageType::SUFFIX));
             $uri = $uri->withPath($path);
             $request = $request->withUri($uri);
         }
@@ -152,8 +152,8 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         if ($routeResult instanceof SiteRouteResult) {
             $tail = $routeResult->getTail();
             // Remove /ai-bots-love.md suffix from tail
-            if (str_ends_with($tail, self::MARKDOWN_URL_SUFFIX)) {
-                $tail = substr($tail, 0, -strlen(self::MARKDOWN_URL_SUFFIX));
+            if (str_ends_with($tail, '/' . MarkdownPageType::SUFFIX)) {
+                $tail = substr($tail, 0, -strlen('/' . MarkdownPageType::SUFFIX));
             }
             $routeResult = new SiteRouteResult(
                 $uri,

@@ -15,6 +15,9 @@ namespace B13\AiBotsLoveMarkdown\Event;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Frontend\Page\PageInformation;
 
+/**
+ * Event to modify frontMatter or markdownContent.
+ */
 final class AfterMarkdownConversionEvent
 {
     public function __construct(

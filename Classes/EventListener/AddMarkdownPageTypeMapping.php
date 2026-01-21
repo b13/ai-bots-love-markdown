@@ -12,13 +12,16 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown\EventListener;
 
+use B13\AiBotsLoveMarkdown\MarkdownPageType;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Configuration\Event\SiteConfigurationLoadedEvent;
 
+/**
+ * Event Listener to automatically register the typeNum=2026, so it can be linked to.
+ * Only possible if you have a RouteEnhancer of type "PageType" available obviously.
+ */
 final class AddMarkdownPageTypeMapping
 {
-    private const TYPE_NUM = 2026;
-    private const SUFFIX = 'ai-bots-love.md';
 
     #[AsEventListener(identifier: 'ai-bots-love-markdown/add-pagetype-mapping')]
     public function __invoke(SiteConfigurationLoadedEvent $event): void
@@ -46,15 +49,15 @@ final class AddMarkdownPageTypeMapping
             }
 
             // Don't add if already configured (either by suffix or typeNum)
-            if (isset($enhancerConfig['map'][self::SUFFIX])) {
+            if (isset($enhancerConfig['map'][MarkdownPageType::SUFFIX])) {
                 continue;
             }
-            if (in_array(self::TYPE_NUM, $enhancerConfig['map'], true)) {
+            if (in_array(MarkdownPageType::TYPE_NUM, $enhancerConfig['map'], true)) {
                 continue;
             }
 
             // Add our mapping
-            $configuration['routeEnhancers'][$name]['map'][self::SUFFIX] = self::TYPE_NUM;
+            $configuration['routeEnhancers'][$name]['map'][MarkdownPageType::SUFFIX] = MarkdownPageType::TYPE_NUM;
             $event->setConfiguration($configuration);
             return;
         }
