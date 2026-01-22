@@ -158,4 +158,8 @@ As AI crawlers become increasingly important for content discovery and processin
 a clean Markdown representation helps ensure your content is accurately understood and indexed
 by AI systems.
 
+Huge credits to Dries Buytaert's inspiration on this topic:
+- [The Third Audience](https://dri.es/the-third-audience)
+- [RSS Auto-Discovery](https://dri.es/rss-auto-discovery)
+
 [Find more TYPO3 extensions we have developed](https://b13.com/useful-typo3-extensions-from-b13-to-you) that help us deliver value in client projects. As part of the way we work, we focus on testing and best practices to ensure long-term performance, reliability, and results in all our code.

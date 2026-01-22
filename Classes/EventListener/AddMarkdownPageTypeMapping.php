@@ -22,7 +22,6 @@ use TYPO3\CMS\Core\Configuration\Event\SiteConfigurationLoadedEvent;
  */
 final class AddMarkdownPageTypeMapping
 {
-
     #[AsEventListener(identifier: 'ai-bots-love-markdown/add-pagetype-mapping')]
     public function __invoke(SiteConfigurationLoadedEvent $event): void
     {
