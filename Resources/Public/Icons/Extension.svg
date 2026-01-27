@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<style type="text/css">
+	.bg{fill:#2D7D9A;}
+	.white{fill:#FFFFFF;}
+	.shadow{opacity:0.3;fill:#FFFFFF;}
+</style>
+<rect class="bg" width="256" height="256"/>
+<title>EXT:ai_bots_love_markdown</title>
+<!-- Robot head -->
+<rect x="48" y="68" rx="16" ry="16" width="160" height="130" class="white"/>
+<!-- Robot antenna -->
+<rect x="118" y="38" width="20" height="30" class="white"/>
+<circle cx="128" cy="32" r="14" class="white"/>
+<!-- Robot eyes -->
+<circle cx="93" cy="112" r="16" class="bg"/>
+<circle cx="163" cy="112" r="16" class="bg"/>
+<!-- Markdown M symbol -->
+<polygon class="bg" points="68,155 68,185 80,185 80,168 94,182 108,168 108,185 120,185 120,155 108,155 94,170 80,155"/>
+<!-- Down arrow (representing conversion/output) -->
+<polygon class="bg" points="145,155 145,175 135,175 155,190 175,175 165,175 165,155"/>
+<!-- Heart in corner -->
+<path class="white" d="M215,210 c0,-10 -8,-16 -16,-16 c-5,0 -10,3 -13,7 c-3,-4 -8,-7 -13,-7 c-8,0 -16,6 -16,16 c0,18 29,34 29,34 s29,-16 29,-34 z"/>
+</svg>
