@@ -45,17 +45,22 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // Check if the early middleware marked this request for markdown conversion
-        if (!$request->getAttribute(MarkdownRequestMiddleware::MARKER_ATTRIBUTE)) {
-            return $handler->handle($request);
-        }
-
-        // Let the normal page render
         $response = $handler->handle($request);
 
         // Only process HTML responses
         $contentType = $response->getHeaderLine('Content-Type');
         if (!str_contains($contentType, 'text/html')) {
+            return $response;
+        }
+
+        if (!$request->getAttribute(MarkdownRequestMiddleware::CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE)) {
+            return $response;
+        }
+
+        $response = $response->withHeader('Vary', 'Accept');
+
+        // Check if the early middleware marked this request for markdown conversion
+        if (!$request->getAttribute(MarkdownRequestMiddleware::MARKDOWN_REQUESTED_ATTRIBUTE)) {
             return $response;
         }
 
@@ -75,14 +80,13 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $body->write($markdown);
         $body->rewind();
 
-        return new Response(
-            $body,
-            200,
-            [
-                'Content-Type' => 'text/markdown; charset=utf-8',
-                'X-Robots-Tag' => 'noindex',
-            ]
-        );
+        $response
+            ->withBody($body)
+            ->withStatus(200)
+            ->withHeader('Content-Type', 'text/markdown; charset=utf-8')
+            ->withHeader('X-Robots-Tag', 'noindex');
+
+        return $response;
     }
 
     private function convertToMarkdown(ServerRequestInterface $request, string $html): string

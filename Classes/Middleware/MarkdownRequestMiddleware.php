@@ -30,20 +30,28 @@ use TYPO3\CMS\Core\Site\Entity\Site;
  */
 final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
 {
-    public const MARKER_ATTRIBUTE = 'ai-bots-love-markdown.requested';
+    public const MARKDOWN_REQUESTED_ATTRIBUTE = 'ai-bots-love-markdown.requested';
+
+    /** @deprecated */
+    public const MARKER_ATTRIBUTE = self::MARKDOWN_REQUESTED_ATTRIBUTE;
+
+    public const CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE = 'ai-bots-love-markdown.contentNegotiationEnabled';
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if (!$this->wantsMarkdown($request)) {
-            return $handler->handle($request);
-        }
-
         if (!$this->isEnabled($request)) {
             return $handler->handle($request);
         }
 
         // Mark the request for markdown conversion
-        $request = $request->withAttribute(self::MARKER_ATTRIBUTE, true);
+        $request = $request->withAttribute(self::CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE, true);
+
+        if (!$this->wantsMarkdown($request)) {
+            return $handler->handle($request);
+        }
+
+        // Mark the request for markdown conversion
+        $request = $request->withAttribute(self::MARKDOWN_REQUESTED_ATTRIBUTE, true);
 
         // Clean up the request: remove .md suffix and type parameter so normal page renders
         $request = $this->cleanRequest($request);
