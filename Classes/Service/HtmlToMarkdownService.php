@@ -27,6 +27,7 @@ class HtmlToMarkdownService
             'remove_nodes' => 'script style nav footer aside header form iframe',
         ]);
         $this->converter->getEnvironment()->addConverter(new TableConverter());
+        $this->converter->getEnvironment()->addConverter(new FencedCodeBlockConverter());
     }
 
     public function convert(string $html, string $baseUrl = ''): string
