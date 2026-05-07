@@ -32,20 +32,21 @@ dependencies:
 
 The extension provides two settings that can be configured per site (both enabled by default):
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `ai_bots_love_markdown.enableContentNegotiation` | `true` | Enable content negotiation via `Accept: text/markdown` header |
-| `ai_bots_love_markdown.enableDiscoveryTag` | `true` | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery |
-
+| Setting                                          | Default           | Description                                                           |
+|--------------------------------------------------|-------------------|-----------------------------------------------------------------------|
+| `ai_bots_love_markdown.enableContentNegotiation` | `true`            | Enable content negotiation via `Accept: text/markdown` header         |
+| `ai_bots_love_markdown.enableDiscoveryTag`       | `true`            | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery |
+| `ai_bots_love_markdown.pageTypeSuffix`           | `ai-bots-love.md` | PageType Suffix for Markdown link                                     |
+| `ai_bots_love_markdown.enableDiscoveryTag`       | `2026`            | PageType TypeNum for Markdown link                                    |
 To override these settings, add them to your site's `settings.yaml`:
 
 ```yaml
-ai_bots_love_markdown:
-  enableContentNegotiation: true
-  enableDiscoveryTag: false
+ai_bots_love_markdown.enableContentNegotiation: true
+ai_bots_love_markdown.enableDiscoveryTag: false
+ai_bots_love_markdown.pageTypeTypeNum: 1778074315
+ai_bots_love_markdown.pageTypeSuffix: 'foo.md'
 ```
 
-Currently, the suffix `/ai-bots-love.md` is hardcoded on purpose.
 
 ## Usage
 
