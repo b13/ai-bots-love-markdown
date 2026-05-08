@@ -36,6 +36,7 @@ The extension provides two settings that can be configured per site (both enable
 |---------|---------|-------------|
 | `ai_bots_love_markdown.enableContentNegotiation` | `true` | Enable content negotiation via `Accept: text/markdown` header |
 | `ai_bots_love_markdown.enableDiscoveryTag` | `true` | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery |
+| `ai_bots_love_markdown.removeElements` | `script style nav footer aside form iframe noscript` | Space-separated HTML tags stripped from the markdown output. `<header>` is intentionally not included — article-level `<header>` regions often contain the page H1 |
 
 To override these settings, add them to your site's `settings.yaml`:
 
@@ -43,6 +44,7 @@ To override these settings, add them to your site's `settings.yaml`:
 ai_bots_love_markdown:
   enableContentNegotiation: true
   enableDiscoveryTag: false
+  removeElements: 'script style nav footer aside form iframe noscript header'
 ```
 
 Currently, the suffix `/ai-bots-love.md` is hardcoded on purpose.
@@ -146,6 +148,36 @@ For best results, wrap your main content in a `<main>` element:
     <footer>...</footer>
 </body>
 ```
+
+### Excluding Content from Markdown
+
+Beyond the `<main>` selection and the configurable `removeElements` list, you
+can mark template regions explicitly via two bundled Fluid partials. They are
+auto-registered through the site set, so no `partialRootPaths` setup is
+required.
+
+Wrap a region you want **excluded** from the markdown output (teasers,
+related-article boxes, breadcrumbs, CTAs):
+
+```html
+<f:render partial="MarkdownExclude" contentAs="content">
+    <div class="teaser">Read also: …</div>
+</f:render>
+```
+
+Or **explicitly mark the main content region** (overrides `<main>` detection,
+useful when `<main>` is missing or contains too much):
+
+```html
+<f:render partial="MarkdownInclude" contentAs="content">
+    <article>… real content …</article>
+</f:render>
+```
+
+Both partials emit HTML comments (`<!-- markdown-start -->`,
+`<!-- markdown-exclude-start -->`, …) that survive caching and are stripped
+from regular page responses by a frontend middleware before they reach human
+visitors. Excludes can be **nested**.
 
 ## License
 

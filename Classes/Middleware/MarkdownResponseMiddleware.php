@@ -37,6 +37,11 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 {
     private const MARKDOWN_LINK_PATTERN = '/<link[^>]+rel=["\']alternate["\'][^>]+type=["\']text\/markdown["\'][^>]*>/i';
 
+    private const MARKER_START = '<!-- markdown-start -->';
+    private const MARKER_END = '<!-- markdown-end -->';
+    private const EXCLUDE_START = '<!-- markdown-exclude-start -->';
+    private const EXCLUDE_END = '<!-- markdown-exclude-end -->';
+
     public function __construct(
         private HtmlToMarkdownService $htmlToMarkdownService,
         private MetadataService $metadataService,
@@ -99,9 +104,18 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Get base URL for making relative URLs absolute
         $site = $request->getAttribute('site');
         $baseUrl = $site instanceof Site ? rtrim((string)$site->getBase(), '/') : '';
+        $removeElements = $site instanceof Site
+            ? (string)$site->getSettings()->get('ai_bots_love_markdown.removeElements', HtmlToMarkdownService::DEFAULT_REMOVE_ELEMENTS)
+            : null;
 
-        // Extract main content (prefer <main>, fallback to <body>)
+        // Extract main content (prefer markers, then <main>, fallback to <body>)
         $content = $this->extractMainContent($html);
+
+        // Drop any regions wrapped in <!-- markdown-exclude-start/end --> markers
+        $content = $this->removeExcludedSections($content);
+
+        // Defense-in-depth: strip residual markers before converter sees the HTML
+        $content = $this->stripMarkers($content);
 
         // Generate front matter from meta tags (with page record as fallback)
         $frontMatter = $this->metadataService->generateFrontMatter($html, $pageRecord, $fallbackUrl);
@@ -110,7 +124,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $pageTitle = $this->extractPageTitle($html, $pageRecord);
 
         // Convert HTML to Markdown
-        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl);
+        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl, $removeElements);
 
         // Dispatch event to allow modification of the markdown output
         $event = $this->eventDispatcher->dispatch(
@@ -151,17 +165,100 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
     private function extractMainContent(string $html): string
     {
-        // Try to extract <main> content first
+        // Priority 1: explicit content region between markdown-start/end markers
+        $markerContent = $this->extractBetweenMarkers($html);
+        if ($markerContent !== null) {
+            return $markerContent;
+        }
+
+        // Priority 2: <main> content
         if (preg_match('/<main[^>]*>(.*?)<\/main>/is', $html, $matches)) {
             return $matches[1];
         }
 
-        // Fallback to <body> content
+        // Priority 3: <body> content
         if (preg_match('/<body[^>]*>(.*?)<\/body>/is', $html, $matches)) {
             return $matches[1];
         }
 
         // Last resort: return the whole HTML
         return $html;
+    }
+
+    private function extractBetweenMarkers(string $html): ?string
+    {
+        $startPos = strpos($html, self::MARKER_START);
+        $endPos = strpos($html, self::MARKER_END);
+
+        if ($startPos === false || $endPos === false || $endPos <= $startPos) {
+            return null;
+        }
+
+        $contentStart = $startPos + strlen(self::MARKER_START);
+        return substr($html, $contentStart, $endPos - $contentStart);
+    }
+
+    /**
+     * Remove regions wrapped in <!-- markdown-exclude-start --> ... <!-- markdown-exclude-end -->.
+     * Depth-aware: nested exclude regions are handled correctly. Defensive against
+     * incomplete markers (missing end / end-before-start: nothing is removed).
+     */
+    private function removeExcludedSections(string $html): string
+    {
+        $result = $html;
+        $iterations = 0;
+        $maxIterations = 100;
+
+        while ($iterations < $maxIterations) {
+            $startPos = strpos($result, self::EXCLUDE_START);
+            if ($startPos === false) {
+                break;
+            }
+
+            $depth = 1;
+            $searchOffset = $startPos + strlen(self::EXCLUDE_START);
+            $endPos = false;
+
+            while ($depth > 0) {
+                $nextStart = strpos($result, self::EXCLUDE_START, $searchOffset);
+                $nextEnd = strpos($result, self::EXCLUDE_END, $searchOffset);
+
+                if ($nextEnd === false) {
+                    break 2;
+                }
+
+                if ($nextStart !== false && $nextStart < $nextEnd) {
+                    $depth++;
+                    $searchOffset = $nextStart + strlen(self::EXCLUDE_START);
+                } else {
+                    $depth--;
+                    if ($depth === 0) {
+                        $endPos = $nextEnd;
+                    }
+                    $searchOffset = $nextEnd + strlen(self::EXCLUDE_END);
+                }
+            }
+
+            if ($endPos === false) {
+                break;
+            }
+
+            $before = substr($result, 0, $startPos);
+            $after = substr($result, $endPos + strlen(self::EXCLUDE_END));
+            $result = $before . $after;
+
+            $iterations++;
+        }
+
+        return $result;
+    }
+
+    private function stripMarkers(string $html): string
+    {
+        return str_replace(
+            [self::MARKER_START, self::MARKER_END, self::EXCLUDE_START, self::EXCLUDE_END],
+            '',
+            $html
+        );
     }
 }

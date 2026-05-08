@@ -7,3 +7,7 @@ settings:
     type: bool
     default: true
     label: 'Add <link rel="alternate"> tag for Markdown discovery'
+  ai_bots_love_markdown.removeElements:
+    type: string
+    default: 'script style nav footer aside form iframe noscript'
+    label: 'Space-separated HTML tags to strip from markdown output'

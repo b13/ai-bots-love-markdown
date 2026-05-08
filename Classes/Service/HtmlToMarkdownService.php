@@ -17,51 +17,62 @@ use League\HTMLToMarkdown\HtmlConverter;
 
 class HtmlToMarkdownService
 {
-    private HtmlConverter $converter;
+    /**
+     * Default tags stripped from the markdown output. <header> is intentionally
+     * NOT in this list: an article-level <header> often contains the page H1
+     * and should reach the markdown output. Page-level <header> regions can be
+     * excluded via the MarkdownExclude partial (or by selecting <main> /
+     * markdown-start markers that exclude the page header by structure).
+     */
+    public const DEFAULT_REMOVE_ELEMENTS = 'script style nav footer aside form iframe noscript';
 
-    public function __construct()
+    public function convert(string $html, string $baseUrl = '', ?string $removeElements = null): string
     {
-        $this->converter = new HtmlConverter([
-            'strip_tags' => true,
-            'hard_break' => true,
-            'remove_nodes' => 'script style nav footer aside header form iframe',
-        ]);
-        $this->converter->getEnvironment()->addConverter(new TableConverter());
-    }
+        $elements = $this->parseElementList($removeElements ?? self::DEFAULT_REMOVE_ELEMENTS);
 
-    public function convert(string $html, string $baseUrl = ''): string
-    {
-        // Remove navigation, footer, aside elements
-        $html = $this->removeNonContentElements($html);
+        $html = $this->removeNonContentElements($html, $elements);
 
-        // Make image URLs absolute
         if ($baseUrl !== '') {
             $html = $this->makeUrlsAbsolute($html, $baseUrl);
         }
 
-        $markdown = $this->converter->convert($html);
+        $markdown = $this->buildConverter($elements)->convert($html);
 
-        // Clean up excessive whitespace
-        $markdown = $this->cleanupMarkdown($markdown);
-
-        return $markdown;
+        return $this->cleanupMarkdown($markdown);
     }
 
-    private function removeNonContentElements(string $html): string
+    private function buildConverter(array $elements): HtmlConverter
     {
-        // Remove elements that typically don't contain main content
-        $patterns = [
-            '/<nav\b[^>]*>.*?<\/nav>/is',
-            '/<footer\b[^>]*>.*?<\/footer>/is',
-            '/<aside\b[^>]*>.*?<\/aside>/is',
-            '/<header\b[^>]*>.*?<\/header>/is',
-            '/<form\b[^>]*>.*?<\/form>/is',
-            '/<script\b[^>]*>.*?<\/script>/is',
-            '/<style\b[^>]*>.*?<\/style>/is',
-            '/<iframe\b[^>]*>.*?<\/iframe>/is',
-            '/<noscript\b[^>]*>.*?<\/noscript>/is',
-        ];
+        $converter = new HtmlConverter([
+            'strip_tags' => true,
+            'hard_break' => true,
+            'remove_nodes' => implode(' ', $elements),
+        ]);
+        $converter->getEnvironment()->addConverter(new TableConverter());
+        return $converter;
+    }
 
+    /**
+     * @return string[]
+     */
+    private function parseElementList(string $list): array
+    {
+        $elements = preg_split('/\s+/', trim($list)) ?: [];
+        return array_values(array_filter($elements, static fn(string $tag) => $tag !== ''));
+    }
+
+    /**
+     * @param string[] $elements
+     */
+    private function removeNonContentElements(string $html, array $elements): string
+    {
+        if ($elements === []) {
+            return $html;
+        }
+        $patterns = array_map(
+            static fn(string $tag) => '/<' . preg_quote($tag, '/') . '\b[^>]*>.*?<\/' . preg_quote($tag, '/') . '>/is',
+            $elements,
+        );
         return preg_replace($patterns, '', $html) ?? $html;
     }
 
