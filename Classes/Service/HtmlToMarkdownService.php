@@ -17,52 +17,20 @@ use League\HTMLToMarkdown\HtmlConverter;
 
 class HtmlToMarkdownService
 {
-    private HtmlConverter $converter;
 
-    public function __construct()
+    public function convert(string $html, string $baseUrl, HtmlConverter $converter): string
     {
-        $this->converter = new HtmlConverter([
-            'strip_tags' => true,
-            'hard_break' => true,
-            'remove_nodes' => 'script style nav footer aside header form iframe',
-        ]);
-        $this->converter->getEnvironment()->addConverter(new TableConverter());
-    }
-
-    public function convert(string $html, string $baseUrl = ''): string
-    {
-        // Remove navigation, footer, aside elements
-        $html = $this->removeNonContentElements($html);
-
         // Make image URLs absolute
         if ($baseUrl !== '') {
             $html = $this->makeUrlsAbsolute($html, $baseUrl);
         }
 
-        $markdown = $this->converter->convert($html);
+        $markdown = $converter->convert($html);
 
         // Clean up excessive whitespace
         $markdown = $this->cleanupMarkdown($markdown);
 
         return $markdown;
-    }
-
-    private function removeNonContentElements(string $html): string
-    {
-        // Remove elements that typically don't contain main content
-        $patterns = [
-            '/<nav\b[^>]*>.*?<\/nav>/is',
-            '/<footer\b[^>]*>.*?<\/footer>/is',
-            '/<aside\b[^>]*>.*?<\/aside>/is',
-            '/<header\b[^>]*>.*?<\/header>/is',
-            '/<form\b[^>]*>.*?<\/form>/is',
-            '/<script\b[^>]*>.*?<\/script>/is',
-            '/<style\b[^>]*>.*?<\/style>/is',
-            '/<iframe\b[^>]*>.*?<\/iframe>/is',
-            '/<noscript\b[^>]*>.*?<\/noscript>/is',
-        ];
-
-        return preg_replace($patterns, '', $html) ?? $html;
     }
 
     private function makeUrlsAbsolute(string $html, string $baseUrl): string
