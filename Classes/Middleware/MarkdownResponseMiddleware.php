@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace B13\AiBotsLoveMarkdown\Middleware;
 
 use B13\AiBotsLoveMarkdown\Event\AfterMarkdownConversionEvent;
+use B13\AiBotsLoveMarkdown\Event\BuildHtmlMarkdownConverterEvent;
 use B13\AiBotsLoveMarkdown\Service\HtmlToMarkdownService;
 use B13\AiBotsLoveMarkdown\Service\MetadataService;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -109,8 +110,12 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Get page title for H1 (from og:title, title tag, or page record)
         $pageTitle = $this->extractPageTitle($html, $pageRecord);
 
+        $buildHtmlConverterEvent = new BuildHtmlMarkdownConverterEvent($request);
+        $this->eventDispatcher->dispatch($buildHtmlConverterEvent);
+        $converter = $buildHtmlConverterEvent->getHtmlConverter();
+
         // Convert HTML to Markdown
-        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl);
+        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl, $converter);
 
         // Dispatch event to allow modification of the markdown output
         $event = $this->eventDispatcher->dispatch(
