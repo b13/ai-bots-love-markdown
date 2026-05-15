@@ -12,20 +12,56 @@ namespace B13\AiBotsLoveMarkdown\Service;
  * of the License, or any later version.
  */
 
+use B13\AiBotsLoveMarkdown\Event\ModifyFrontMatterDataEvent;
 use Doctrine\DBAL\ParameterType;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Frontend\Page\PageInformation;
 
 final readonly class MetadataService
 {
     public function __construct(
         protected ConnectionPool $connectionPool,
+        protected EventDispatcherInterface $eventDispatcher,
     ) {}
 
     /**
-     * Generate YAML front matter from HTML meta tags and page record
-     * Meta tags take priority, page record is used as fallback
+     * Generate YAML front matter from HTML meta tags and page record.
+     *
+     * Meta tags take priority, page record is used as fallback.
+     * Dispatches {@see ModifyFrontMatterDataEvent} so listeners can add or
+     * modify entries before the array is rendered to YAML.
      */
-    public function generateFrontMatter(string $html, array $pageRecord, string $fallbackUrl): string
+    public function generateFrontMatter(
+        string $html,
+        array $pageRecord,
+        string $fallbackUrl,
+        ?PageInformation $pageInformation = null,
+        ?ServerRequestInterface $request = null,
+    ): string {
+        $frontMatter = $this->buildFrontMatterData($html, $pageRecord, $fallbackUrl);
+
+        $event = $this->eventDispatcher->dispatch(
+            new ModifyFrontMatterDataEvent(
+                frontMatter: $frontMatter,
+                pageRecord: $pageRecord,
+                html: $html,
+                pageInformation: $pageInformation,
+                request: $request,
+            )
+        );
+
+        return $this->renderYaml($event->frontMatter);
+    }
+
+    /**
+     * Assemble the front-matter data array from HTML meta tags and the page record.
+     *
+     * Exposed as a separate step so integrators with their own rendering pipeline
+     * can grab the structured array directly.
+     */
+    public function buildFrontMatterData(string $html, array $pageRecord, string $fallbackUrl): array
     {
         // Extract metadata from HTML meta tags
         $metaTags = $this->extractMetaTags($html);
@@ -102,6 +138,14 @@ final readonly class MetadataService
             $frontMatter['locale'] = $metaTags['og:locale'];
         }
 
+        return $frontMatter;
+    }
+
+    /**
+     * Render a front-matter data array to a YAML front-matter block.
+     */
+    public function renderYaml(array $frontMatter): string
+    {
         return $this->formatYamlFrontMatter($frontMatter);
     }
 
