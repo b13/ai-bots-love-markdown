@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown\Event;
 
+use B13\AiBotsLoveMarkdown\Service\FencedCodeBlockConverter;
 use League\HTMLToMarkdown\Converter\ConverterInterface;
 use League\HTMLToMarkdown\Converter\TableConverter;
 use League\HTMLToMarkdown\HtmlConverter;
@@ -34,6 +35,7 @@ final class BuildHtmlMarkdownConverterEvent
         public readonly ServerRequestInterface $request,
     ) {
         $this->converters[] = new TableConverter();
+        $this->converters[] = new FencedCodeBlockConverter();
     }
 
     public function getOptions(): array
