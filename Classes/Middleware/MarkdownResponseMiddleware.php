@@ -15,6 +15,7 @@ namespace B13\AiBotsLoveMarkdown\Middleware;
 use B13\AiBotsLoveMarkdown\Event\AfterMarkdownConversionEvent;
 use B13\AiBotsLoveMarkdown\Event\BuildHtmlMarkdownConverterEvent;
 use B13\AiBotsLoveMarkdown\Service\HtmlToMarkdownService;
+use B13\AiBotsLoveMarkdown\Service\MarkdownExclusionService;
 use B13\AiBotsLoveMarkdown\Service\MetadataService;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -47,6 +48,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         private HtmlToMarkdownService $htmlToMarkdownService,
         private MetadataService $metadataService,
         private EventDispatcherInterface $eventDispatcher,
+        private MarkdownExclusionService $exclusionService,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -63,6 +65,18 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $contentType = $response->getHeaderLine('Content-Type');
         if (!str_contains($contentType, 'text/html')) {
             return $response;
+        }
+
+        // Per-page / per-doktype exclusion: skip conversion and also strip
+        // the discovery link from the HTML so bots don't follow a dead alternate.
+        $pageRecord = [];
+        $pageInformation = $request->getAttribute('frontend.page.information');
+        if ($pageInformation instanceof PageInformation) {
+            $pageRecord = $pageInformation->getPageRecord();
+        }
+        $site = $request->getAttribute('site');
+        if ($this->exclusionService->isExcluded($pageRecord, $site instanceof Site ? $site : null)) {
+            return $this->stripDiscoveryLink($response);
         }
 
         // Get the HTML content
@@ -268,5 +282,24 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
             '',
             $html
         );
+    }
+
+    /**
+     * Remove the <link rel="alternate" type="text/markdown"> tag from the HTML
+     * response so user agents don't follow a dead markdown URL for excluded pages.
+     */
+    private function stripDiscoveryLink(ResponseInterface $response): ResponseInterface
+    {
+        $html = (string)$response->getBody();
+        $stripped = preg_replace(self::MARKDOWN_LINK_PATTERN, '', $html);
+        if ($stripped === null || $stripped === $html) {
+            return $response;
+        }
+
+        $body = new Stream('php://temp', 'rw');
+        $body->write($stripped);
+        $body->rewind();
+
+        return $response->withBody($body)->withoutHeader('Content-Length');
     }
 }
