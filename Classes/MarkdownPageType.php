@@ -12,8 +12,20 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown;
 
+use TYPO3\CMS\Core\Site\Entity\Site;
+
 final class MarkdownPageType
 {
     public const TYPE_NUM = 2026;
     public const SUFFIX = 'ai-bots-love.md';
+
+    public function getSuffix(Site $site): string
+    {
+        return $site->getSettings()->get('ai_bots_love_markdown.pageTypeSuffix', self::SUFFIX);
+    }
+
+    public function getTypeNum(Site $site): int
+    {
+        return $site->getSettings()->get('ai_bots_love_markdown.pageTypeTypeNum', self::TYPE_NUM);
+    }
 }

@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace B13\AiBotsLoveMarkdown\Middleware;
 
 use B13\AiBotsLoveMarkdown\Event\AfterMarkdownConversionEvent;
+use B13\AiBotsLoveMarkdown\Event\BuildHtmlMarkdownConverterEvent;
 use B13\AiBotsLoveMarkdown\Service\HtmlToMarkdownService;
 use B13\AiBotsLoveMarkdown\Service\MetadataService;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -104,9 +105,6 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Get base URL for making relative URLs absolute
         $site = $request->getAttribute('site');
         $baseUrl = $site instanceof Site ? rtrim((string)$site->getBase(), '/') : '';
-        $removeElements = $site instanceof Site
-            ? (string)$site->getSettings()->get('ai_bots_love_markdown.removeElements', HtmlToMarkdownService::DEFAULT_REMOVE_ELEMENTS)
-            : null;
 
         // Extract main content (prefer markers, then <main>, fallback to <body>)
         $content = $this->extractMainContent($html);
@@ -123,8 +121,18 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Get page title for H1 (from og:title, title tag, or page record)
         $pageTitle = $this->extractPageTitle($html, $pageRecord);
 
+        $buildHtmlConverterEvent = new BuildHtmlMarkdownConverterEvent($request);
+        if ($site instanceof Site) {
+            $removeElements = (string)$site->getSettings()->get('ai_bots_love_markdown.removeElements', '');
+            if ($removeElements !== '') {
+                $buildHtmlConverterEvent->mergeOptions(['remove_nodes' => $removeElements]);
+            }
+        }
+        $this->eventDispatcher->dispatch($buildHtmlConverterEvent);
+        $converter = $buildHtmlConverterEvent->getHtmlConverter();
+
         // Convert HTML to Markdown
-        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl, $removeElements);
+        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl, $converter);
 
         // Dispatch event to allow modification of the markdown output
         $event = $this->eventDispatcher->dispatch(

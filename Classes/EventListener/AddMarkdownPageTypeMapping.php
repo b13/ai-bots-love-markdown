@@ -47,16 +47,20 @@ final class AddMarkdownPageTypeMapping
                 continue;
             }
 
+            $suffix = $configuration['settings']['ai_bots_love_markdown.pageTypeSuffix'] ?? MarkdownPageType::SUFFIX;
+            $typeNum = $configuration['settings']['ai_bots_love_markdown.pageTypeTypeNum'] ?? MarkdownPageType::TYPE_NUM;
+
             // Don't add if already configured (either by suffix or typeNum)
-            if (isset($enhancerConfig['map'][MarkdownPageType::SUFFIX])) {
+            if (isset($enhancerConfig['map'][$suffix])) {
                 continue;
             }
-            if (in_array(MarkdownPageType::TYPE_NUM, $enhancerConfig['map'], true)) {
+            if (in_array($typeNum, $enhancerConfig['map'], true)) {
                 continue;
             }
 
+
             // Add our mapping
-            $configuration['routeEnhancers'][$name]['map'][MarkdownPageType::SUFFIX] = MarkdownPageType::TYPE_NUM;
+            $configuration['routeEnhancers'][$name]['map'][$suffix] = $typeNum;
             $event->setConfiguration($configuration);
             return;
         }

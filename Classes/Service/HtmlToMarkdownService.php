@@ -17,63 +17,20 @@ use League\HTMLToMarkdown\HtmlConverter;
 
 class HtmlToMarkdownService
 {
-    /**
-     * Default tags stripped from the markdown output. <header> is intentionally
-     * NOT in this list: an article-level <header> often contains the page H1
-     * and should reach the markdown output. Page-level <header> regions can be
-     * excluded via the MarkdownExclude partial (or by selecting <main> /
-     * markdown-start markers that exclude the page header by structure).
-     */
-    public const DEFAULT_REMOVE_ELEMENTS = 'script style nav footer aside form iframe noscript';
 
-    public function convert(string $html, string $baseUrl = '', ?string $removeElements = null): string
+    public function convert(string $html, string $baseUrl, HtmlConverter $converter): string
     {
-        $elements = $this->parseElementList($removeElements ?? self::DEFAULT_REMOVE_ELEMENTS);
-
-        $html = $this->removeNonContentElements($html, $elements);
-
+        // Make image URLs absolute
         if ($baseUrl !== '') {
             $html = $this->makeUrlsAbsolute($html, $baseUrl);
         }
 
-        $markdown = $this->buildConverter($elements)->convert($html);
+        $markdown = $converter->convert($html);
 
-        return $this->cleanupMarkdown($markdown);
-    }
+        // Clean up excessive whitespace
+        $markdown = $this->cleanupMarkdown($markdown);
 
-    private function buildConverter(array $elements): HtmlConverter
-    {
-        $converter = new HtmlConverter([
-            'strip_tags' => true,
-            'hard_break' => true,
-            'remove_nodes' => implode(' ', $elements),
-        ]);
-        $converter->getEnvironment()->addConverter(new TableConverter());
-        return $converter;
-    }
-
-    /**
-     * @return string[]
-     */
-    private function parseElementList(string $list): array
-    {
-        $elements = preg_split('/\s+/', trim($list)) ?: [];
-        return array_values(array_filter($elements, static fn(string $tag) => $tag !== ''));
-    }
-
-    /**
-     * @param string[] $elements
-     */
-    private function removeNonContentElements(string $html, array $elements): string
-    {
-        if ($elements === []) {
-            return $html;
-        }
-        $patterns = array_map(
-            static fn(string $tag) => '/<' . preg_quote($tag, '/') . '\b[^>]*>.*?<\/' . preg_quote($tag, '/') . '>/is',
-            $elements,
-        );
-        return preg_replace($patterns, '', $html) ?? $html;
+        return $markdown;
     }
 
     private function makeUrlsAbsolute(string $html, string $baseUrl): string

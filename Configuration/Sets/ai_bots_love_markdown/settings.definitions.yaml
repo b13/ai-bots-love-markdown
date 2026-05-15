@@ -7,6 +7,14 @@ settings:
     type: bool
     default: true
     label: 'Add <link rel="alternate"> tag for Markdown discovery'
+  ai_bots_love_markdown.pageTypeSuffix:
+    type: string
+    default: 'ai-bots-love.md'
+    label: 'PageType Suffix for Markdown link'
+  ai_bots_love_markdown.pageTypeTypeNum:
+    type: int
+    default: 2026
+    label: 'PageType TypeNum for Markdown link'
   ai_bots_love_markdown.removeElements:
     type: string
     default: 'script style nav footer aside form iframe noscript'
