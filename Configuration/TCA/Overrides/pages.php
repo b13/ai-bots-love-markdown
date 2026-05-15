@@ -17,6 +17,10 @@ call_user_func(static function (): void {
         'no_markdown_version' => [
             'exclude' => true,
             'label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.no_markdown_version',
+            // Hide on doktypes that are already in the site's `excludedDoktypes`
+            // list — the toggle has no effect there, showing it would only confuse
+            // editors. Site-aware lookup so projects can override the list.
+            'displayCond' => 'USER:B13\\AiBotsLoveMarkdown\\Backend\\TcaCondition\\HideOnExcludedDoktype->match',
             'config' => [
                 'type' => 'check',
                 'renderType' => 'checkboxToggle',
