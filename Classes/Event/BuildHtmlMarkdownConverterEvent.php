@@ -27,7 +27,10 @@ final class BuildHtmlMarkdownConverterEvent
     protected array $options = [
         'strip_tags' => true,
         'hard_break' => true,
-        'remove_nodes' => 'script style nav footer aside header form iframe noscript',
+        // <header> is intentionally NOT stripped by default: article-level <header>
+        // often holds the page H1 and should reach the markdown output. Override
+        // per site via the `ai_bots_love_markdown.removeElements` setting.
+        'remove_nodes' => 'script style nav footer aside form iframe noscript',
     ];
     protected $converters = [];
 

@@ -22,5 +22,12 @@ return [
                 'typo3/cms-frontend/content-length-headers',
             ],
         ],
+        // Strip markdown markers from HTML responses for human visitors
+        'b13/ai-bots-love-markdown/strip-markers' => [
+            'target' => \B13\AiBotsLoveMarkdown\Middleware\StripMarkdownMarkersMiddleware::class,
+            'after' => [
+                'typo3/cms-frontend/content-length-headers',
+            ],
+        ],
     ],
 ];

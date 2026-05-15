@@ -15,3 +15,7 @@ settings:
     type: int
     default: 2026
     label: 'PageType TypeNum for Markdown link'
+  ai_bots_love_markdown.removeElements:
+    type: string
+    default: 'script style nav footer aside form iframe noscript'
+    label: 'Space-separated HTML tags to strip from markdown output'

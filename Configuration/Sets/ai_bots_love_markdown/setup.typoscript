@@ -12,3 +12,8 @@ page.headerData.1736000 {
     }
     wrap = <link rel="alternate" type="text/markdown" href="|" title="Markdown version" />
 }
+
+# Make MarkdownInclude / MarkdownExclude partials available to integrators
+# without requiring manual partialRootPaths configuration in their site set.
+lib.contentElement.partialRootPaths.1736001 = EXT:ai_bots_love_markdown/Resources/Private/Partials/
+page.10.partialRootPaths.1736001 = EXT:ai_bots_love_markdown/Resources/Private/Partials/
