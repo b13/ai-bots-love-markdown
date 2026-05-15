@@ -53,22 +53,19 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // Check if the early middleware marked this request for markdown conversion
-        if (!$request->getAttribute(MarkdownRequestMiddleware::MARKER_ATTRIBUTE)) {
-            return $handler->handle($request);
-        }
+        $isMarkdownRequest = (bool)$request->getAttribute(MarkdownRequestMiddleware::MARKER_ATTRIBUTE);
 
         // Let the normal page render
         $response = $handler->handle($request);
 
-        // Only process HTML responses
-        $contentType = $response->getHeaderLine('Content-Type');
-        if (!str_contains($contentType, 'text/html')) {
+        // We only ever touch HTML responses.
+        if (!str_contains($response->getHeaderLine('Content-Type'), 'text/html')) {
             return $response;
         }
 
-        // Per-page / per-doktype exclusion: skip conversion and also strip
-        // the discovery link from the HTML so bots don't follow a dead alternate.
+        // Per-page / per-doktype exclusion check runs for EVERY HTML response — not
+        // just markdown requests — so that bots crawling the regular HTML don't see
+        // a discovery link for a page that will never serve markdown.
         $pageRecord = [];
         $pageInformation = $request->getAttribute('frontend.page.information');
         if ($pageInformation instanceof PageInformation) {
@@ -76,7 +73,15 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         }
         $site = $request->getAttribute('site');
         if ($this->exclusionService->isExcluded($pageRecord, $site instanceof Site ? $site : null)) {
+            // For markdown requesters this is a graceful content-negotiation downgrade
+            // to HTML; for regular visitors the discovery link is removed so the dead
+            // alternate URL is never advertised.
             return $this->stripDiscoveryLink($response);
+        }
+
+        // Non-excluded pages: pass through unchanged unless a markdown alternate was requested.
+        if (!$isMarkdownRequest) {
+            return $response;
         }
 
         // Get the HTML content
