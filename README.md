@@ -195,7 +195,7 @@ visitors. Excludes can be **nested**.
 
 The default front matter is built from HTML meta tags and the page record. To
 add domain-specific keys (e.g. seminar data, product attributes, event dates),
-listen to the `ModifyFrontMatterDataEvent`. Listeners receive the assembled
+listen to the `AfterFrontMatterForPageIsCreatedEvent`. Listeners receive the assembled
 data array **before** it is rendered to YAML and may add, remove, or replace
 entries.
 
@@ -206,7 +206,7 @@ declare(strict_types=1);
 
 namespace MyVendor\MySite\EventListener;
 
-use B13\AiBotsLoveMarkdown\Event\ModifyFrontMatterDataEvent;
+use B13\AiBotsLoveMarkdown\Event\AfterFrontMatterForPageIsCreatedEvent;
 use MyVendor\MySite\Domain\Repository\SeminarRepository;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
 
@@ -217,7 +217,7 @@ final readonly class AddSeminarFrontMatter
     ) {}
 
     #[AsEventListener]
-    public function __invoke(ModifyFrontMatterDataEvent $event): void
+    public function __invoke(AfterFrontMatterForPageIsCreatedEvent $event): void
     {
         $pageId = (int)($event->pageRecord['uid'] ?? 0);
         $seminar = $this->seminarRepository->findByDetailPageId($pageId);

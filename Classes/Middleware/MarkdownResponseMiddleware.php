@@ -135,7 +135,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $content = $this->stripMarkers($content);
 
         // Generate front matter from meta tags (with page record as fallback).
-        // Pass PageInformation + request so listeners on ModifyFrontMatterDataEvent
+        // Pass PageInformation + request so listeners on AfterFrontMatterForPageIsCreatedEvent
         // have full request context.
         $frontMatter = $this->metadataService->generateFrontMatter(
             $html,
