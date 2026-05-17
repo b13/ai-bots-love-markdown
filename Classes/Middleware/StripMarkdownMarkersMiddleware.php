@@ -48,6 +48,14 @@ final class StripMarkdownMarkersMiddleware implements MiddlewareInterface
             return $response;
         }
 
+        // Debug bypass: when ?markdown-markers=1 is set, keep the markers in
+        // the HTML response so integrators can see exactly which regions
+        // their templates emit. Analogous to b13/vgwort-pro's vgwort-markers
+        // query param. Never use this in production responses.
+        if (($request->getQueryParams()['markdown-markers'] ?? '') === '1') {
+            return $response;
+        }
+
         $body = (string)$response->getBody();
 
         if (!str_contains($body, '<!-- markdown-')) {
