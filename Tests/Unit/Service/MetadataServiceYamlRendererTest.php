@@ -22,9 +22,15 @@ final class MetadataServiceYamlRendererTest extends UnitTestCase
 {
     private function service(): MetadataService
     {
+        $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        // Default behaviour: pass the event back through unchanged so listeners
+        // would be a no-op. Tests that need to assert on listener interaction
+        // can override this expectation locally.
+        $eventDispatcher->method('dispatch')->willReturnArgument(0);
+
         return new MetadataService(
             $this->createMock(ConnectionPool::class),
-            $this->createMock(EventDispatcherInterface::class),
+            $eventDispatcher,
         );
     }
 
@@ -130,5 +136,30 @@ final class MetadataServiceYamlRendererTest extends UnitTestCase
         ]);
 
         self::assertStringContainsString('title: "A: complicated [value]"', $yaml);
+    }
+
+    #[Test]
+    public function collapsesWhitespaceInMetaTagsFromFluidRenderedHtml(): void
+    {
+        // Simulates a Fluid-rendered meta description where indentation +
+        // newlines from the template have leaked into the content attribute.
+        $html = '<meta name="description" content="Hello world'
+            . "\n\t\t\t " . '&#9655;'
+            . "\n\t\t\t" . 'Second sentence." />'
+            . '<meta property="og:title" content="A &amp;amp; B" />';
+
+        $service = $this->service();
+        $yaml = $service->generateFrontMatter($html, [], 'https://example.com/');
+
+        // Description should be a single line, no tabs, no entity-encoded triangle.
+        self::assertStringContainsString(
+            'description: Hello world ▷ Second sentence.',
+            $yaml,
+        );
+        // og:title double-encoded should still decode to plain "&"; the value
+        // also gets quoted because "&" is a YAML special character.
+        self::assertStringContainsString('title: "A & B"', $yaml);
+        // No physical tab characters mid-value (whitespace was collapsed).
+        self::assertStringNotContainsString("\t", $yaml);
     }
 }

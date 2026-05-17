@@ -102,7 +102,7 @@ final readonly class MetadataService
         // SYS_LASTCHANGED is intentionally not surfaced as a separate
         // "lastUpdated" key — it's almost always identical to tstamp and just
         // adds noise. Listeners can add their own date keys via
-        // ModifyFrontMatterDataEvent when they need a domain-specific date.
+        // AfterFrontMatterForPageIsCreatedEvent when they need a domain-specific date.
         if (!empty($pageRecord['crdate'])) {
             $frontMatter['date'] = date('Y-m-d', (int)$pageRecord['crdate']);
         }
@@ -164,11 +164,26 @@ final readonly class MetadataService
      * which leaves us with `&amp;amp;` in the source HTML. A single decode
      * pass on a single-encoded `&amp;` collapses correctly to `&`; the second
      * pass is a no-op when there's nothing left to decode.
+     *
+     * Whitespace is collapsed afterwards so values whose source is a Fluid
+     * partial (where indentation and newlines leak into the meta content)
+     * don't end up as multi-line YAML strings.
      */
     private function decodeEntities(string $value): string
     {
         $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        return html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return $this->normalizeWhitespace($decoded);
+    }
+
+    /**
+     * Collapses runs of whitespace (including newlines and tabs that leak in
+     * from Fluid-rendered meta tags) into a single space and trims.
+     * Preserves regular spaces between words.
+     */
+    private function normalizeWhitespace(string $value): string
+    {
+        return trim((string)preg_replace('/\s+/u', ' ', $value));
     }
 
     protected function extractMetaTags(string $html): array
