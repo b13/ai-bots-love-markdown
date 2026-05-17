@@ -12,7 +12,7 @@ namespace B13\AiBotsLoveMarkdown\Service;
  * of the License, or any later version.
  */
 
-use B13\AiBotsLoveMarkdown\Event\ModifyFrontMatterDataEvent;
+use B13\AiBotsLoveMarkdown\Event\AfterFrontMatterForPageIsCreatedEvent;
 use Doctrine\DBAL\ParameterType;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -30,7 +30,7 @@ final readonly class MetadataService
      * Generate YAML front matter from HTML meta tags and page record.
      *
      * Meta tags take priority, page record is used as fallback.
-     * Dispatches {@see ModifyFrontMatterDataEvent} so listeners can add or
+     * Dispatches {@see AfterFrontMatterForPageIsCreatedEvent} so listeners can add or
      * modify entries before the array is rendered to YAML.
      */
     public function generateFrontMatter(
@@ -43,7 +43,7 @@ final readonly class MetadataService
         $frontMatter = $this->buildFrontMatterData($html, $pageRecord, $fallbackUrl);
 
         $event = $this->eventDispatcher->dispatch(
-            new ModifyFrontMatterDataEvent(
+            new AfterFrontMatterForPageIsCreatedEvent(
                 frontMatter: $frontMatter,
                 pageRecord: $pageRecord,
                 html: $html,

@@ -16,12 +16,13 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Frontend\Page\PageInformation;
 
 /**
- * Event to modify the YAML front matter data array before it is rendered.
+ * Fired after the YAML front-matter data array has been assembled from meta
+ * tags and the page record, but before it is rendered to a YAML string.
  *
  * Listeners can add, remove, or replace entries in the $frontMatter array.
  * The array preserves insertion order, which is reflected in the rendered YAML.
  */
-final class ModifyFrontMatterDataEvent
+final class AfterFrontMatterForPageIsCreatedEvent
 {
     public function __construct(
         public array $frontMatter,
