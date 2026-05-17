@@ -16,6 +16,9 @@ use B13\AiBotsLoveMarkdown\Middleware\StripMarkdownMarkersMiddleware;
 use PHPUnit\Framework\Attributes\Test;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Core\ApplicationContext;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\ServerRequest;
 use TYPO3\CMS\Core\Http\Stream;
@@ -23,6 +26,30 @@ use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 
 final class StripMarkdownMarkersMiddlewareTest extends UnitTestCase
 {
+    private ?ApplicationContext $originalContext = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Tests need a defined ApplicationContext for the debug-bypass gating.
+        // Unit tests don't initialize Environment on their own — bootstrap a
+        // Testing context here and restore whatever was there before in tearDown.
+        try {
+            $this->originalContext = Environment::getContext();
+        } catch (\TypeError) {
+            $this->originalContext = null;
+        }
+        $this->initializeEnvironmentWith(new ApplicationContext('Testing'));
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalContext instanceof ApplicationContext) {
+            $this->initializeEnvironmentWith($this->originalContext);
+        }
+        parent::tearDown();
+    }
+
     private function createResponseWithBody(string $body, string $contentType = 'text/html; charset=utf-8'): ResponseInterface
     {
         $stream = new Stream('php://temp', 'rw');
@@ -102,5 +129,82 @@ final class StripMarkdownMarkersMiddlewareTest extends UnitTestCase
         );
 
         self::assertSame($original, $response);
+    }
+
+    #[Test]
+    public function debugQueryParamKeepsMarkersForBackendUser(): void
+    {
+        $html = '<html><body><!-- markdown-start --><p>x</p><!-- markdown-end --></body></html>';
+        $beUser = $this->createMock(BackendUserAuthentication::class);
+        $beUser->user = ['uid' => 1];
+
+        $request = (new ServerRequest('https://example.com/?markdown-markers=1', 'GET'))
+            ->withQueryParams(['markdown-markers' => '1'])
+            ->withAttribute('backend.user', $beUser);
+
+        $middleware = new StripMarkdownMarkersMiddleware();
+        $response = $middleware->process(
+            $request,
+            $this->createHandler($this->createResponseWithBody($html))
+        );
+
+        self::assertStringContainsString('<!-- markdown-start -->', (string)$response->getBody());
+    }
+
+    #[Test]
+    public function debugQueryParamIsIgnoredForAnonymousProductionRequest(): void
+    {
+        $this->initializeEnvironmentWith(new ApplicationContext('Production'));
+
+        $html = '<html><body><!-- markdown-start --><p>x</p><!-- markdown-end --></body></html>';
+
+        $request = (new ServerRequest('https://example.com/?markdown-markers=1', 'GET'))
+            ->withQueryParams(['markdown-markers' => '1']);
+
+        $middleware = new StripMarkdownMarkersMiddleware();
+        $response = $middleware->process(
+            $request,
+            $this->createHandler($this->createResponseWithBody($html))
+        );
+
+        // Production + anonymous => markers must be stripped even with the
+        // debug flag, otherwise crawlers could surface them.
+        self::assertStringNotContainsString('<!-- markdown-', (string)$response->getBody());
+    }
+
+    #[Test]
+    public function debugQueryParamKeepsMarkersInNonProductionAnonymousRequest(): void
+    {
+        // setUp() already put us in a Testing context.
+        self::assertFalse(Environment::getContext()->isProduction());
+
+        $html = '<html><body><!-- markdown-start --><p>x</p><!-- markdown-end --></body></html>';
+
+        $request = (new ServerRequest('https://example.com/?markdown-markers=1', 'GET'))
+            ->withQueryParams(['markdown-markers' => '1']);
+
+        $middleware = new StripMarkdownMarkersMiddleware();
+        $response = $middleware->process(
+            $request,
+            $this->createHandler($this->createResponseWithBody($html))
+        );
+
+        self::assertStringContainsString('<!-- markdown-start -->', (string)$response->getBody());
+    }
+
+    private function initializeEnvironmentWith(ApplicationContext $context): void
+    {
+        $projectPath = dirname(__DIR__, 3);
+        Environment::initialize(
+            $context,
+            true,
+            true,
+            $projectPath,
+            $projectPath,
+            $projectPath . '/var',
+            $projectPath . '/Configuration',
+            $projectPath . '/vendor/bin/phpunit',
+            'UNIX',
+        );
     }
 }
