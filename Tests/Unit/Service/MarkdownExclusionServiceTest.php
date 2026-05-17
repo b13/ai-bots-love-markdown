@@ -37,7 +37,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
     {
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
-            ['doktype' => 1, 'no_markdown_version' => 0],
+            ['doktype' => 1, 'markdown_version' => 1],
             $this->siteWithExcludedDoktypes('3,4,6,7,199,254,255'),
         );
 
@@ -49,7 +49,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
     {
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
-            ['doktype' => 254, 'no_markdown_version' => 0],
+            ['doktype' => 254, 'markdown_version' => 1],
             $this->siteWithExcludedDoktypes('3,4,6,7,199,254,255'),
         );
 
@@ -61,7 +61,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
     {
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
-            ['doktype' => 1, 'no_markdown_version' => 1],
+            ['doktype' => 1, 'markdown_version' => 0],
             $this->siteWithExcludedDoktypes('3,4,6,7,199,254,255'),
         );
 
@@ -73,7 +73,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
     {
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
-            ['doktype' => 1, 'no_markdown_version' => '1'], // string '1' from DB
+            ['doktype' => 1, 'markdown_version' => '0'], // string '0' from DB
             $this->siteWithExcludedDoktypes(''),
         );
 
@@ -85,7 +85,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
     {
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
-            ['doktype' => 254, 'no_markdown_version' => 0],
+            ['doktype' => 254, 'markdown_version' => 1],
             $this->siteWithExcludedDoktypes(''),
         );
 
@@ -98,7 +98,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
         $service = new MarkdownExclusionService();
         // 'abc' and ' ' should be ignored, '254' should still match
         $excluded = $service->isExcluded(
-            ['doktype' => 254, 'no_markdown_version' => 0],
+            ['doktype' => 254, 'markdown_version' => 1],
             $this->siteWithExcludedDoktypes('abc, ,254, '),
         );
 
@@ -110,7 +110,7 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
     {
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
-            ['doktype' => 254, 'no_markdown_version' => 0],
+            ['doktype' => 254, 'markdown_version' => 1],
             null,
         );
 
@@ -123,6 +123,21 @@ final class MarkdownExclusionServiceTest extends UnitTestCase
         $service = new MarkdownExclusionService();
         $excluded = $service->isExcluded(
             [],
+            $this->siteWithExcludedDoktypes('3,4,6,7,199,254,255'),
+        );
+
+        self::assertFalse($excluded);
+    }
+
+    #[Test]
+    public function defaultsToIncludedWhenMarkdownVersionKeyIsMissing(): void
+    {
+        // pageRecord without the markdown_version field (e.g. legacy row from
+        // before the column was added) should behave as if the column carried
+        // its default value of 1 — i.e. NOT excluded.
+        $service = new MarkdownExclusionService();
+        $excluded = $service->isExcluded(
+            ['doktype' => 1],
             $this->siteWithExcludedDoktypes('3,4,6,7,199,254,255'),
         );
 

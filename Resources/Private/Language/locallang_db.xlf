@@ -3,9 +3,9 @@
 	<file source-language="en" datatype="plaintext" original="messages" date="2026-05-15T00:00:00Z" product-name="ai_bots_love_markdown">
 		<header/>
 		<body>
-			<trans-unit id="pages.no_markdown_version">
+			<trans-unit id="pages.markdown_version">
 				<source>Disable Markdown version</source>
-				<note>When enabled, this page will never serve a Markdown alternate response and the discovery link tag is not advertised.</note>
+				<note>Backed by the affirmative `pages.markdown_version` column (default 1, rendered inverted in the BE). Turn the toggle on to suppress the Markdown alternate response and discovery link for this page.</note>
 			</trans-unit>
 		</body>
 	</file>

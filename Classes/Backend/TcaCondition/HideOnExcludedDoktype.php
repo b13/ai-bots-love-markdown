@@ -20,7 +20,7 @@ use TYPO3\CMS\Core\Site\SiteFinder;
  * TCA displayCond user function: hide a field on pages whose doktype is in
  * the site's `ai_bots_love_markdown.excludedDoktypes` list.
  *
- * Used by the `pages.no_markdown_version` toggle so editors don't see a
+ * Used by the `pages.markdown_version` toggle so editors don't see a
  * "Disable Markdown version" switch on doktypes that never produce markdown
  * anyway (cart, wishlist, mountpoint, sysfolder, recycler, ...).
  */

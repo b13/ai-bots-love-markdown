@@ -19,7 +19,9 @@ use TYPO3\CMS\Core\Site\Entity\Site;
  *
  * Two mechanisms, both checked:
  *  - Site setting `ai_bots_love_markdown.excludedDoktypes` (comma-separated doktype IDs)
- *  - TCA field `pages.no_markdown_version` (per-page editorial opt-out)
+ *  - TCA field `pages.markdown_version` (per-page editorial opt-out — affirmative
+ *    field with default 1; the BE renders the toggle inverted as "Disable Markdown
+ *    version")
  */
 final readonly class MarkdownExclusionService
 {
@@ -27,7 +29,12 @@ final readonly class MarkdownExclusionService
 
     public function isExcluded(array $pageRecord, ?Site $site): bool
     {
-        if ((int)($pageRecord['no_markdown_version'] ?? 0) === 1) {
+        // Per-page opt-out: when `markdown_version` is explicitly 0 the editor
+        // turned the toggle on ("Disable Markdown version" because the BE renders
+        // it inverted). Default-on means missing-or-1 keeps markdown enabled.
+        if (array_key_exists('markdown_version', $pageRecord)
+            && (int)$pageRecord['markdown_version'] === 0
+        ) {
             return true;
         }
 

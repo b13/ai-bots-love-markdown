@@ -55,7 +55,8 @@ ai_bots_love_markdown.excludedDoktypes: '3,4,6,7,199,254,255,37,38,41'
 ### Per-page opt-out
 
 Editors can disable the Markdown alternate for individual pages via the page property
-**Disable Markdown version** (TCA field `pages.no_markdown_version`). When set, the
+**Disable Markdown version** (TCA field `pages.markdown_version`, default on, rendered
+inverted in the BE so the toggle reads as "disable"). When the toggle is turned on, the
 `<link rel="alternate">` discovery tag is stripped from the HTML response and any direct
 request to `.md` / `Accept: text/markdown` returns the regular HTML.
 

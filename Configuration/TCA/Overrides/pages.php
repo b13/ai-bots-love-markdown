@@ -14,9 +14,9 @@ defined('TYPO3') or die();
 
 call_user_func(static function (): void {
     $additionalColumns = [
-        'no_markdown_version' => [
+        'markdown_version' => [
             'exclude' => true,
-            'label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.no_markdown_version',
+            'label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.markdown_version',
             // Hide on doktypes that are already in the site's `excludedDoktypes`
             // list — the toggle has no effect there, showing it would only confuse
             // editors. Site-aware lookup so projects can override the list.
@@ -24,7 +24,17 @@ call_user_func(static function (): void {
             'config' => [
                 'type' => 'check',
                 'renderType' => 'checkboxToggle',
-                'default' => 0,
+                // Field is named in the affirmative ("markdown_version") with
+                // default-on, and the BE renders the toggle inverted so the
+                // editor sees / sets "Disable Markdown version". Keeps the
+                // PHP guard `!$row['markdown_version']` readable.
+                'default' => 1,
+                'items' => [
+                    [
+                        'label' => '',
+                        'invertStateDisplay' => true,
+                    ],
+                ],
             ],
         ],
     ];
@@ -32,7 +42,7 @@ call_user_func(static function (): void {
     \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addTCAcolumns('pages', $additionalColumns);
     \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addToAllTCAtypes(
         'pages',
-        'no_markdown_version',
+        'markdown_version',
         '',
         'after:no_search',
     );
