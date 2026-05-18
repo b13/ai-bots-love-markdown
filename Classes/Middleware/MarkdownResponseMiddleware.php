@@ -134,8 +134,16 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Defense-in-depth: strip residual markers before converter sees the HTML
         $content = $this->stripMarkers($content);
 
-        // Generate front matter from meta tags (with page record as fallback)
-        $frontMatter = $this->metadataService->generateFrontMatter($html, $pageRecord, $fallbackUrl);
+        // Generate front matter from meta tags (with page record as fallback).
+        // Pass PageInformation + request so listeners on AfterFrontMatterForPageIsCreatedEvent
+        // have full request context.
+        $frontMatter = $this->metadataService->generateFrontMatter(
+            $html,
+            $pageRecord,
+            $fallbackUrl,
+            $pageInformation instanceof PageInformation ? $pageInformation : null,
+            $request,
+        );
 
         // Get page title for H1 (from og:title, title tag, or page record)
         $pageTitle = $this->extractPageTitle($html, $pageRecord);

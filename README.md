@@ -191,6 +191,60 @@ Both partials emit HTML comments (`<!-- markdown-start -->`,
 from regular page responses by a frontend middleware before they reach human
 visitors. Excludes can be **nested**.
 
+### Extending the YAML front matter
+
+The default front matter is built from HTML meta tags and the page record. To
+add domain-specific keys (e.g. seminar data, product attributes, event dates),
+listen to the `AfterFrontMatterForPageIsCreatedEvent`. Listeners receive the assembled
+data array **before** it is rendered to YAML and may add, remove, or replace
+entries.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MyVendor\MySite\EventListener;
+
+use B13\AiBotsLoveMarkdown\Event\AfterFrontMatterForPageIsCreatedEvent;
+use MyVendor\MySite\Domain\Repository\SeminarRepository;
+use TYPO3\CMS\Core\Attribute\AsEventListener;
+
+final readonly class AddSeminarFrontMatter
+{
+    public function __construct(
+        private SeminarRepository $seminarRepository,
+    ) {}
+
+    #[AsEventListener]
+    public function __invoke(AfterFrontMatterForPageIsCreatedEvent $event): void
+    {
+        $pageId = (int)($event->pageRecord['uid'] ?? 0);
+        $seminar = $this->seminarRepository->findByDetailPageId($pageId);
+        if ($seminar === null) {
+            return;
+        }
+
+        $event->frontMatter['seminar_title'] = $seminar->getTitle();
+        $event->frontMatter['seminar_instructor'] = $seminar->getInstructor()?->getDisplayName();
+        $event->frontMatter['seminar_price_eur'] = number_format($seminar->getPriceCents() / 100, 2, '.', '');
+        $event->frontMatter['seminar_dates'] = array_map(
+            static fn (\DateTimeImmutable $d) => $d->format('Y-m-d'),
+            $seminar->getDates(),
+        );
+    }
+}
+```
+
+The event also exposes `$html`, `$pageInformation`, and `$request` (each
+read-only) so listeners can resolve site, language, or routing information
+when needed. Array order is preserved in the rendered YAML, so you can
+prepend custom keys by recreating the array if order matters.
+
+If you need to bypass the YAML rendering entirely, the underlying methods
+`MetadataService::buildFrontMatterData()` and `MetadataService::renderYaml()`
+are public and can be used directly.
+
 ## License
 
 The extension is licensed under GPL v2+, same as the TYPO3 Core.
