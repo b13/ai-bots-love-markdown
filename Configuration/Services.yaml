@@ -6,3 +6,8 @@ services:
 
   B13\AiBotsLoveMarkdown\:
     resource: '../Classes/*'
+
+  # TCA displayCond USER-funcs are resolved via GeneralUtility::makeInstance,
+  # which requires the service to be public in the container.
+  B13\AiBotsLoveMarkdown\Backend\TcaCondition\HideOnExcludedDoktype:
+    public: true

@@ -19,3 +19,7 @@ settings:
     type: string
     default: 'script style nav footer aside form iframe noscript'
     label: 'Space-separated HTML tags to strip from markdown output'
+  ai_bots_love_markdown.excludedDoktypes:
+    type: string
+    default: '3,4,6,7,199,254,255'
+    label: 'Comma-separated page doktypes that never produce a Markdown alternate response (default: standard TYPO3 system doktypes)'

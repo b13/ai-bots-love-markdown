@@ -39,6 +39,7 @@ The extension provides two settings that can be configured per site (both enable
 | `ai_bots_love_markdown.pageTypeSuffix`           | `ai-bots-love.md`                                    | PageType Suffix for Markdown link                                                                                                                          |
 | `ai_bots_love_markdown.pageTypeTypeNum`          | `2026`                                               | PageType TypeNum for Markdown link                                                                                                                         |
 | `ai_bots_love_markdown.removeElements`           | `script style nav footer aside form iframe noscript` | Space-separated HTML tags stripped from the markdown output. `<header>` is intentionally not included — article-level `<header>` regions often hold the H1 |
+| `ai_bots_love_markdown.excludedDoktypes`         | `3,4,6,7,199,254,255`                                | Comma-separated page doktypes that never produce a Markdown alternate response. Default covers TYPO3 system doktypes (external link, shortcut, mountpoint, sysfolder, recycler, etc.) |
 
 To override these settings, add them to your site's `settings.yaml`:
 
@@ -48,7 +49,16 @@ ai_bots_love_markdown.enableDiscoveryTag: false
 ai_bots_love_markdown.pageTypeTypeNum: 1778074315
 ai_bots_love_markdown.pageTypeSuffix: 'foo.md'
 ai_bots_love_markdown.removeElements: 'script style nav footer aside form iframe noscript header'
+ai_bots_love_markdown.excludedDoktypes: '3,4,6,7,199,254,255,37,38,41'
 ```
+
+### Per-page opt-out
+
+Editors can disable the Markdown alternate for individual pages via the page property
+**Disable Markdown version** (TCA field `pages.markdown_version`, default on, rendered
+inverted in the BE so the toggle reads as "disable"). When the toggle is turned on, the
+`<link rel="alternate">` discovery tag is stripped from the HTML response and any direct
+request to `.md` / `Accept: text/markdown` returns the regular HTML.
 
 
 ## Usage
