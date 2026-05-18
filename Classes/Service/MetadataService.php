@@ -68,11 +68,13 @@ final readonly class MetadataService
 
         $frontMatter = [];
 
-        // Title: og:title > meta title > page record
+        // Title: og:title > meta title > page record.
+        // pageRecord values come straight from TYPO3 and may carry HTML entities
+        // (e.g. "Automotive &amp; Mobility") — decode them so the YAML output
+        // matches what a human reader sees in the rendered page title.
         $frontMatter['title'] = $metaTags['og:title']
             ?? $metaTags['title']
-            ?? $pageRecord['title']
-            ?? '';
+            ?? $this->decodeEntities((string)($pageRecord['title'] ?? ''));
 
         // URL: canonical > fallback URL
         $frontMatter['url'] = $metaTags['canonical'] ?? $fallbackUrl;
@@ -80,8 +82,7 @@ final readonly class MetadataService
         // Description: og:description > meta description > page record
         $description = $metaTags['og:description']
             ?? $metaTags['description']
-            ?? $pageRecord['description']
-            ?? '';
+            ?? $this->decodeEntities((string)($pageRecord['description'] ?? ''));
         if ($description !== '') {
             $frontMatter['description'] = $description;
         }
@@ -92,20 +93,21 @@ final readonly class MetadataService
         }
 
         // Author: meta author > page record
-        $author = $metaTags['author'] ?? $pageRecord['author'] ?? '';
+        $author = $metaTags['author'] ?? $this->decodeEntities((string)($pageRecord['author'] ?? ''));
         if ($author !== '') {
             $frontMatter['author'] = $author;
         }
 
-        // Dates from page record (no standard meta tags for these)
+        // Dates from page record (no standard meta tags for these).
+        // SYS_LASTCHANGED is intentionally not surfaced as a separate
+        // "lastUpdated" key — it's almost always identical to tstamp and just
+        // adds noise. Listeners can add their own date keys via
+        // AfterFrontMatterForPageIsCreatedEvent when they need a domain-specific date.
         if (!empty($pageRecord['crdate'])) {
             $frontMatter['date'] = date('Y-m-d', (int)$pageRecord['crdate']);
         }
         if (!empty($pageRecord['tstamp'])) {
             $frontMatter['modified'] = date('Y-m-d', (int)$pageRecord['tstamp']);
-        }
-        if (!empty($pageRecord['SYS_LASTCHANGED'])) {
-            $frontMatter['lastUpdated'] = date('Y-m-d', (int)$pageRecord['SYS_LASTCHANGED']);
         }
 
         // Keywords from meta tags
@@ -152,13 +154,45 @@ final readonly class MetadataService
     /**
      * Extract meta tags from HTML
      */
+    /**
+     * Decode named / numeric HTML entities so values carried over from a page
+     * record (or any other not-yet-decoded source) render cleanly in YAML.
+     *
+     * We run the decode pass twice on purpose: some TYPO3 installations
+     * double-encode `og:title` content attributes (the raw page title is
+     * already entity-escaped and then the meta-tag renderer escapes it again),
+     * which leaves us with `&amp;amp;` in the source HTML. A single decode
+     * pass on a single-encoded `&amp;` collapses correctly to `&`; the second
+     * pass is a no-op when there's nothing left to decode.
+     *
+     * Whitespace is collapsed afterwards so values whose source is a Fluid
+     * partial (where indentation and newlines leak into the meta content)
+     * don't end up as multi-line YAML strings.
+     */
+    private function decodeEntities(string $value): string
+    {
+        $decoded = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return $this->normalizeWhitespace($decoded);
+    }
+
+    /**
+     * Collapses runs of whitespace (including newlines and tabs that leak in
+     * from Fluid-rendered meta tags) into a single space and trims.
+     * Preserves regular spaces between words.
+     */
+    private function normalizeWhitespace(string $value): string
+    {
+        return trim((string)preg_replace('/\s+/u', ' ', $value));
+    }
+
     protected function extractMetaTags(string $html): array
     {
         $meta = [];
 
         // Extract <title> tag
         if (preg_match('/<title[^>]*>([^<]+)<\/title>/i', $html, $matches)) {
-            $meta['title'] = trim(html_entity_decode($matches[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            $meta['title'] = trim($this->decodeEntities($matches[1]));
         }
 
         // Extract canonical URL
@@ -173,7 +207,7 @@ final readonly class MetadataService
         foreach ($matches as $match) {
             $name = strtolower($match[1]);
             if (in_array($name, ['description', 'keywords', 'author'], true)) {
-                $meta[$name] = html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $meta[$name] = $this->decodeEntities($match[2]);
             }
         }
 
@@ -182,7 +216,7 @@ final readonly class MetadataService
         foreach ($matches as $match) {
             $name = strtolower($match[2]);
             if (in_array($name, ['description', 'keywords', 'author'], true) && !isset($meta[$name])) {
-                $meta[$name] = html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $meta[$name] = $this->decodeEntities($match[1]);
             }
         }
 
@@ -191,7 +225,7 @@ final readonly class MetadataService
         foreach ($matches as $match) {
             $property = strtolower($match[1]);
             if (str_starts_with($property, 'og:')) {
-                $meta[$property] = html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $meta[$property] = $this->decodeEntities($match[2]);
             }
         }
 
@@ -200,7 +234,7 @@ final readonly class MetadataService
         foreach ($matches as $match) {
             $property = strtolower($match[2]);
             if (str_starts_with($property, 'og:') && !isset($meta[$property])) {
-                $meta[$property] = html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $meta[$property] = $this->decodeEntities($match[1]);
             }
         }
 
@@ -242,29 +276,104 @@ final readonly class MetadataService
     protected function formatYamlFrontMatter(array $data): string
     {
         $yaml = "---\n";
-
         foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $yaml .= $key . ":\n";
-                foreach ($value as $item) {
-                    $yaml .= '  - ' . $this->escapeYamlValue($item) . "\n";
-                }
-            } else {
-                $yaml .= $key . ': ' . $this->escapeYamlValue($value) . "\n";
-            }
+            $yaml .= $this->renderYamlPair((string)$key, $value, 0);
         }
-
         $yaml .= "---\n\n";
 
         return $yaml;
     }
 
-    protected function escapeYamlValue(string $value): string
+    /**
+     * Render a single key/value pair as YAML. Supports nested lists (each
+     * list item can itself be a list of scalars or an associative array)
+     * so a listener that adds, e.g., `upcoming_dates: [{start, end, location}, ...]`
+     * doesn't crash the renderer.
+     *
+     * @param mixed $value
+     */
+    private function renderYamlPair(string $key, mixed $value, int $depth): string
     {
-        // If the value contains special characters, wrap in quotes
-        if (preg_match('/[:#{}\[\]&*?|>!\'\"%@`]/', $value) || str_contains($value, "\n")) {
-            return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $value) . '"';
+        $indent = str_repeat('  ', $depth);
+        if (!is_array($value)) {
+            return $indent . $key . ': ' . $this->escapeYamlValue($value) . "\n";
         }
-        return $value;
+        if ($value === []) {
+            return $indent . $key . ": []\n";
+        }
+        $yaml = $indent . $key . ":\n";
+        if (array_is_list($value)) {
+            foreach ($value as $item) {
+                $yaml .= $this->renderYamlListItem($item, $depth + 1);
+            }
+            return $yaml;
+        }
+        // Associative array — render as nested mapping.
+        foreach ($value as $childKey => $childValue) {
+            $yaml .= $this->renderYamlPair((string)$childKey, $childValue, $depth + 1);
+        }
+        return $yaml;
+    }
+
+    /**
+     * @param mixed $item
+     */
+    private function renderYamlListItem(mixed $item, int $depth): string
+    {
+        $indent = str_repeat('  ', $depth);
+        if (!is_array($item)) {
+            return $indent . '- ' . $this->escapeYamlValue($item) . "\n";
+        }
+        if ($item === []) {
+            return $indent . "- []\n";
+        }
+        if (array_is_list($item)) {
+            // List of lists — render the inner list under a dash-anchored block.
+            $yaml = $indent . "-\n";
+            foreach ($item as $sub) {
+                $yaml .= $this->renderYamlListItem($sub, $depth + 1);
+            }
+            return $yaml;
+        }
+        // Associative array as a list item — first pair shares the dash line,
+        // subsequent pairs are aligned to the same indent.
+        $yaml = '';
+        $first = true;
+        foreach ($item as $childKey => $childValue) {
+            if ($first) {
+                $first = false;
+                if (is_array($childValue)) {
+                    // Complex first value: dash on its own line, child indented.
+                    $yaml .= $indent . "-\n" . $this->renderYamlPair((string)$childKey, $childValue, $depth + 1);
+                } else {
+                    $yaml .= $indent . '- ' . (string)$childKey . ': ' . $this->escapeYamlValue($childValue) . "\n";
+                }
+                continue;
+            }
+            // Subsequent keys: indent matches the position after "- " (depth + 1).
+            $yaml .= $this->renderYamlPair((string)$childKey, $childValue, $depth + 1);
+        }
+        return $yaml;
+    }
+
+    /**
+     * Escape a scalar value for safe YAML emission. Accepts scalars (string,
+     * int, float, bool) and null so callers don't have to cast every numeric
+     * count or boolean flag they want to surface.
+     */
+    protected function escapeYamlValue(string|int|float|bool|null $value): string
+    {
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        $string = (string)$value;
+        // Quote when the value contains YAML-reserved characters or newlines.
+        if (preg_match('/[:#{}\[\]&*?|>!\'\"%@`]/', $string) || str_contains($string, "\n")) {
+            return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $string) . '"';
+        }
+        return $string;
     }
 }
