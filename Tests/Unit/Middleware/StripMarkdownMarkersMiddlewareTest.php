@@ -89,6 +89,29 @@ final class StripMarkdownMarkersMiddlewareTest extends UnitTestCase
     }
 
     #[Test]
+    public function dropsContentLengthHeaderWhenBodyChanges(): void
+    {
+        // A stale Content-Length from cache / upstream that no longer matches
+        // the shortened body must be removed — otherwise HTTP/2 closes the
+        // stream with INTERNAL_ERROR and the browser's document.readyState
+        // never reaches "complete".
+        $html = '<html><body>'
+            . '<!-- markdown-start --><p>Content</p><!-- markdown-end -->'
+            . '</body></html>';
+
+        $upstream = $this->createResponseWithBody($html)
+            ->withHeader('Content-Length', (string)strlen($html));
+
+        $middleware = new StripMarkdownMarkersMiddleware();
+        $response = $middleware->process(
+            new ServerRequest('https://example.com/', 'GET'),
+            $this->createHandler($upstream),
+        );
+
+        self::assertFalse($response->hasHeader('Content-Length'));
+    }
+
+    #[Test]
     public function doesNotModifyNonHtmlResponse(): void
     {
         $json = '{"data": "<!-- markdown-start -->"}';

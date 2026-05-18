@@ -74,7 +74,12 @@ final class StripMarkdownMarkersMiddleware implements MiddlewareInterface
         $stream->write($body);
         $stream->rewind();
 
-        return $response->withBody($stream);
+        // Drop the original Content-Length header — the marker-stripped body
+        // is shorter than the cached / upstream length. Leaving the header
+        // in place produces an HTTP/2 INTERNAL_ERROR / RST_STREAM in browsers
+        // because the declared length doesn't match the bytes on the wire,
+        // and downstream document.readyState never reaches "complete".
+        return $response->withBody($stream)->withoutHeader('Content-Length');
     }
 
     private function isDebugBypassAllowed(ServerRequestInterface $request): bool
