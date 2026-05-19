@@ -90,6 +90,15 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
             ->withHeader('X-Robots-Tag', 'noindex')
             ->withoutHeader('Content-Length');
 
+        // Optional cache override: sites that need every markdown delivery to reach
+        // the origin (e.g. for AI-bot tracking) can opt out of CDN caching by
+        // setting `ai_bots_love_markdown.cacheable: false`. The default is `true`
+        // — TYPO3's page-level Cache-Control is preserved and the CDN may cache.
+        $site = $request->getAttribute('site');
+        if ($site instanceof Site && !(bool)$site->getSettings()->get('ai_bots_love_markdown.cacheable', true)) {
+            $response = $response->withHeader('Cache-Control', 'private, no-store');
+        }
+
         return $response;
     }
 

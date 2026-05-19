@@ -30,12 +30,13 @@ dependencies:
 
 ### Site Settings
 
-The extension provides two settings that can be configured per site (both enabled by default):
+The extension provides the following settings that can be configured per site:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `ai_bots_love_markdown.enableContentNegotiation` | `true` | Enable content negotiation via `Accept: text/markdown` header |
 | `ai_bots_love_markdown.enableDiscoveryTag` | `true` | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery |
+| `ai_bots_love_markdown.cacheable` | `true` | Allow CDN / reverse-proxy caching of Markdown responses. Disable to force every hit through to the origin — required when you want to count AI-bot deliveries accurately (e.g. via `b13/ai-bot-tracker`). When `false`, `Cache-Control: private, no-store` is set on Markdown responses |
 
 To override these settings, add them to your site's `settings.yaml`:
 
@@ -43,9 +44,24 @@ To override these settings, add them to your site's `settings.yaml`:
 ai_bots_love_markdown:
   enableContentNegotiation: true
   enableDiscoveryTag: false
+  cacheable: false
 ```
 
 Currently, the suffix `/ai-bots-love.md` is hardcoded on purpose.
+
+### Caching and content negotiation
+
+Markdown responses share the URL of the HTML page when `Accept: text/markdown` is
+used. To prevent reverse proxies from serving a cached HTML response to a Markdown
+requester (or vice versa), the middleware adds a `Vary: Accept` header to every
+response that goes through a site with content negotiation enabled — regardless
+of whether the current request asked for Markdown.
+
+By default (`cacheable: true`), TYPO3's page-level `Cache-Control` is preserved
+on the Markdown response, so the CDN may cache. If you need every Markdown
+delivery to reach the origin — typically to track bot consumption — set
+`cacheable: false` and the response is sent with `Cache-Control: private,
+no-store`.
 
 ## Usage
 
