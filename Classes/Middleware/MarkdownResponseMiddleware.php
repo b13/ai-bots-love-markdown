@@ -20,7 +20,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\Stream;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Frontend\Page\PageInformation;
@@ -80,11 +79,16 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $body->write($markdown);
         $body->rewind();
 
-        $response
+        // PSR-7 messages are immutable — every withX() call returns a new instance,
+        // so the chain must be reassigned. Content-Length from the HTML response is
+        // dropped because the body length changed; the frontend's content-length
+        // middleware recalculates it. Without that, HTTP/2 clients close the stream.
+        $response = $response
             ->withBody($body)
             ->withStatus(200)
             ->withHeader('Content-Type', 'text/markdown; charset=utf-8')
-            ->withHeader('X-Robots-Tag', 'noindex');
+            ->withHeader('X-Robots-Tag', 'noindex')
+            ->withoutHeader('Content-Length');
 
         return $response;
     }
