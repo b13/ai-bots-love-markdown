@@ -37,11 +37,11 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if (!$this->wantsMarkdown($request)) {
+        if (!$this->isEnabled($request)) {
             return $handler->handle($request);
         }
 
-        if (!$this->isEnabled($request)) {
+        if (!$this->wantsMarkdown($request)) {
             return $handler->handle($request);
         }
 
@@ -89,7 +89,7 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
     {
         $site = $request->getAttribute('site');
         if (!$site instanceof Site) {
-            return true;
+            return false;
         }
 
         return (bool)$site->getSettings()->get('ai_bots_love_markdown.enableContentNegotiation', true);
