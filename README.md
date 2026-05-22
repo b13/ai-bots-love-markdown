@@ -32,22 +32,36 @@ dependencies:
 
 The extension provides the following settings that can be configured per site:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `ai_bots_love_markdown.enableContentNegotiation` | `true` | Enable content negotiation via `Accept: text/markdown` header |
-| `ai_bots_love_markdown.enableDiscoveryTag` | `true` | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery |
-| `ai_bots_love_markdown.cacheable` | `true` | Allow CDN / reverse-proxy caching of Markdown responses. Disable to force every hit through to the origin — required when you want to count AI-bot deliveries accurately (e.g. via `b13/ai-bot-tracker`). When `false`, `Cache-Control: private, no-store` is set on Markdown responses |
+| Setting                                          | Default                                              | Description                                                                                                                                                |
+|--------------------------------------------------|------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_bots_love_markdown.enableContentNegotiation` | `true`                                               | Enable content negotiation via `Accept: text/markdown` header                                                                                              |
+| `ai_bots_love_markdown.enableDiscoveryTag`       | `true`                                               | Add `<link rel="alternate">` tag to HTML pages for Markdown discovery                                                                                      |
+| `ai_bots_love_markdown.pageTypeSuffix`           | `ai-bots-love.md`                                    | PageType Suffix for Markdown link                                                                                                                          |
+| `ai_bots_love_markdown.pageTypeTypeNum`          | `2026`                                               | PageType TypeNum for Markdown link                                                                                                                         |
+| `ai_bots_love_markdown.removeElements`           | `script style nav footer aside form iframe noscript` | Space-separated HTML tags stripped from the markdown output. `<header>` is intentionally not included — article-level `<header>` regions often hold the H1 |
+| `ai_bots_love_markdown.excludedDoktypes`         | `3,4,6,7,199,254,255`                                | Comma-separated page doktypes that never produce a Markdown alternate response. Default covers TYPO3 system doktypes (external link, shortcut, mountpoint, sysfolder, recycler, etc.) |
+| `ai_bots_love_markdown.cacheable`                | `true`                                               | Allow CDN / reverse-proxy caching of Markdown responses. Disable to force every hit through to the origin — required when you want to count AI-bot deliveries accurately (e.g. via `b13/ai-bot-tracker`). When `false`, `Cache-Control: private, no-store` is set on Markdown responses |
 
 To override these settings, add them to your site's `settings.yaml`:
 
 ```yaml
-ai_bots_love_markdown:
-  enableContentNegotiation: true
-  enableDiscoveryTag: false
-  cacheable: false
+ai_bots_love_markdown.enableContentNegotiation: true
+ai_bots_love_markdown.enableDiscoveryTag: false
+ai_bots_love_markdown.pageTypeTypeNum: 1778074315
+ai_bots_love_markdown.pageTypeSuffix: 'foo.md'
+ai_bots_love_markdown.removeElements: 'script style nav footer aside form iframe noscript header'
+ai_bots_love_markdown.excludedDoktypes: '3,4,6,7,199,254,255,37,38,41'
+ai_bots_love_markdown.cacheable: false
 ```
 
-Currently, the suffix `/ai-bots-love.md` is hardcoded on purpose.
+### Per-page opt-out
+
+Editors can disable the Markdown alternate for individual pages via the page property
+**Disable Markdown version** (TCA field `pages.markdown_version`, default on, rendered
+inverted in the BE so the toggle reads as "disable"). When the toggle is turned on, the
+`<link rel="alternate">` discovery tag is stripped from the HTML response and any direct
+request to `.md` / `Accept: text/markdown` returns the regular HTML.
+
 
 ### Caching and content negotiation
 
@@ -162,6 +176,90 @@ For best results, wrap your main content in a `<main>` element:
     <footer>...</footer>
 </body>
 ```
+
+### Excluding Content from Markdown
+
+Beyond the `<main>` selection and the configurable `removeElements` list, you
+can mark template regions explicitly via two bundled Fluid partials. They are
+auto-registered through the site set, so no `partialRootPaths` setup is
+required.
+
+Wrap a region you want **excluded** from the markdown output (teasers,
+related-article boxes, breadcrumbs, CTAs):
+
+```html
+<f:render partial="MarkdownExclude" contentAs="content">
+    <div class="teaser">Read also: …</div>
+</f:render>
+```
+
+Or **explicitly mark the main content region** (overrides `<main>` detection,
+useful when `<main>` is missing or contains too much):
+
+```html
+<f:render partial="MarkdownInclude" contentAs="content">
+    <article>… real content …</article>
+</f:render>
+```
+
+Both partials emit HTML comments (`<!-- markdown-start -->`,
+`<!-- markdown-exclude-start -->`, …) that survive caching and are stripped
+from regular page responses by a frontend middleware before they reach human
+visitors. Excludes can be **nested**.
+
+### Extending the YAML front matter
+
+The default front matter is built from HTML meta tags and the page record. To
+add domain-specific keys (e.g. seminar data, product attributes, event dates),
+listen to the `AfterFrontMatterForPageIsCreatedEvent`. Listeners receive the assembled
+data array **before** it is rendered to YAML and may add, remove, or replace
+entries.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace MyVendor\MySite\EventListener;
+
+use B13\AiBotsLoveMarkdown\Event\AfterFrontMatterForPageIsCreatedEvent;
+use MyVendor\MySite\Domain\Repository\SeminarRepository;
+use TYPO3\CMS\Core\Attribute\AsEventListener;
+
+final readonly class AddSeminarFrontMatter
+{
+    public function __construct(
+        private SeminarRepository $seminarRepository,
+    ) {}
+
+    #[AsEventListener]
+    public function __invoke(AfterFrontMatterForPageIsCreatedEvent $event): void
+    {
+        $pageId = (int)($event->pageRecord['uid'] ?? 0);
+        $seminar = $this->seminarRepository->findByDetailPageId($pageId);
+        if ($seminar === null) {
+            return;
+        }
+
+        $event->frontMatter['seminar_title'] = $seminar->getTitle();
+        $event->frontMatter['seminar_instructor'] = $seminar->getInstructor()?->getDisplayName();
+        $event->frontMatter['seminar_price_eur'] = number_format($seminar->getPriceCents() / 100, 2, '.', '');
+        $event->frontMatter['seminar_dates'] = array_map(
+            static fn (\DateTimeImmutable $d) => $d->format('Y-m-d'),
+            $seminar->getDates(),
+        );
+    }
+}
+```
+
+The event also exposes `$html`, `$pageInformation`, and `$request` (each
+read-only) so listeners can resolve site, language, or routing information
+when needed. Array order is preserved in the rendered YAML, so you can
+prepend custom keys by recreating the array if order matters.
+
+If you need to bypass the YAML rendering entirely, the underlying methods
+`MetadataService::buildFrontMatterData()` and `MetadataService::renderYaml()`
+are public and can be used directly.
 
 ## License
 

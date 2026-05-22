@@ -2,3 +2,6 @@
 /Build/phpunit/.phpunit.*
 /.php-cs-fixer.cache
 /.Build/
+/vendor/
+/public/
+/var/

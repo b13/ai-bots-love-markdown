@@ -13,7 +13,9 @@ declare(strict_types=1);
 namespace B13\AiBotsLoveMarkdown\Middleware;
 
 use B13\AiBotsLoveMarkdown\Event\AfterMarkdownConversionEvent;
+use B13\AiBotsLoveMarkdown\Event\BuildHtmlMarkdownConverterEvent;
 use B13\AiBotsLoveMarkdown\Service\HtmlToMarkdownService;
+use B13\AiBotsLoveMarkdown\Service\MarkdownExclusionService;
 use B13\AiBotsLoveMarkdown\Service\MetadataService;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -36,30 +38,56 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 {
     private const MARKDOWN_LINK_PATTERN = '/<link[^>]+rel=["\']alternate["\'][^>]+type=["\']text\/markdown["\'][^>]*>/i';
 
+    private const MARKER_START = '<!-- markdown-start -->';
+    private const MARKER_END = '<!-- markdown-end -->';
+    private const EXCLUDE_START = '<!-- markdown-exclude-start -->';
+    private const EXCLUDE_END = '<!-- markdown-exclude-end -->';
+
     public function __construct(
         private HtmlToMarkdownService $htmlToMarkdownService,
         private MetadataService $metadataService,
         private EventDispatcherInterface $eventDispatcher,
+        private MarkdownExclusionService $exclusionService,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        $isMarkdownRequest = (bool)$request->getAttribute(MarkdownRequestMiddleware::MARKDOWN_REQUESTED_ATTRIBUTE);
+
+        // Let the normal page render
         $response = $handler->handle($request);
 
-        // Only process HTML responses
-        $contentType = $response->getHeaderLine('Content-Type');
-        if (!str_contains($contentType, 'text/html')) {
+        // We only ever touch HTML responses.
+        if (!str_contains($response->getHeaderLine('Content-Type'), 'text/html')) {
             return $response;
         }
 
-        if (!$request->getAttribute(MarkdownRequestMiddleware::CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE)) {
-            return $response;
+        // Signal to caches that this URL varies by Accept so a reverse proxy cannot
+        // cross-serve a cached HTML response to a markdown requester (or vice versa).
+        // Applies to every HTML response on a content-negotiation-enabled site,
+        // including those that will not be converted to markdown.
+        if ($request->getAttribute(MarkdownRequestMiddleware::CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE)) {
+            $response = $response->withHeader('Vary', 'Accept');
         }
 
-        $response = $response->withHeader('Vary', 'Accept');
+        // Per-page / per-doktype exclusion check runs for EVERY HTML response — not
+        // just markdown requests — so that bots crawling the regular HTML don't see
+        // a discovery link for a page that will never serve markdown.
+        $pageRecord = [];
+        $pageInformation = $request->getAttribute('frontend.page.information');
+        if ($pageInformation instanceof PageInformation) {
+            $pageRecord = $pageInformation->getPageRecord();
+        }
+        $site = $request->getAttribute('site');
+        if ($this->exclusionService->isExcluded($pageRecord, $site instanceof Site ? $site : null)) {
+            // For markdown requesters this is a graceful content-negotiation downgrade
+            // to HTML; for regular visitors the discovery link is removed so the dead
+            // alternate URL is never advertised.
+            return $this->stripDiscoveryLink($response);
+        }
 
-        // Check if the early middleware marked this request for markdown conversion
-        if (!$request->getAttribute(MarkdownRequestMiddleware::MARKDOWN_REQUESTED_ATTRIBUTE)) {
+        // Non-excluded pages: pass through unchanged unless a markdown alternate was requested.
+        if (!$isMarkdownRequest) {
             return $response;
         }
 
@@ -74,15 +102,15 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Convert to markdown
         $markdown = $this->convertToMarkdown($request, $html);
 
-        // Return markdown response
         $body = new Stream('php://temp', 'rw');
         $body->write($markdown);
         $body->rewind();
 
-        // PSR-7 messages are immutable — every withX() call returns a new instance,
-        // so the chain must be reassigned. Content-Length from the HTML response is
-        // dropped because the body length changed; the frontend's content-length
-        // middleware recalculates it. Without that, HTTP/2 clients close the stream.
+        // Reassign the PSR-7 chain — every withX() returns a new instance. We swap
+        // the body on the existing response so the page's Cache-Control flows
+        // through (a CDN can then cache the markdown the same way it caches the
+        // HTML). Drop the stale Content-Length: the swapped body has a different
+        // length and HTTP/2 clients abort the stream otherwise.
         $response = $response
             ->withBody($body)
             ->withStatus(200)
@@ -91,10 +119,8 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
             ->withoutHeader('Content-Length');
 
         // Optional cache override: sites that need every markdown delivery to reach
-        // the origin (e.g. for AI-bot tracking) can opt out of CDN caching by
-        // setting `ai_bots_love_markdown.cacheable: false`. The default is `true`
-        // — TYPO3's page-level Cache-Control is preserved and the CDN may cache.
-        $site = $request->getAttribute('site');
+        // the origin (e.g. for AI-bot tracking via b13/ai-bot-tracker) can opt out
+        // by setting `ai_bots_love_markdown.cacheable: false`.
         if ($site instanceof Site && !(bool)$site->getSettings()->get('ai_bots_love_markdown.cacheable', true)) {
             $response = $response->withHeader('Cache-Control', 'private, no-store');
         }
@@ -117,17 +143,41 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         $site = $request->getAttribute('site');
         $baseUrl = $site instanceof Site ? rtrim((string)$site->getBase(), '/') : '';
 
-        // Extract main content (prefer <main>, fallback to <body>)
+        // Extract main content (prefer markers, then <main>, fallback to <body>)
         $content = $this->extractMainContent($html);
 
-        // Generate front matter from meta tags (with page record as fallback)
-        $frontMatter = $this->metadataService->generateFrontMatter($html, $pageRecord, $fallbackUrl);
+        // Drop any regions wrapped in <!-- markdown-exclude-start/end --> markers
+        $content = $this->removeExcludedSections($content);
+
+        // Defense-in-depth: strip residual markers before converter sees the HTML
+        $content = $this->stripMarkers($content);
+
+        // Generate front matter from meta tags (with page record as fallback).
+        // Pass PageInformation + request so listeners on AfterFrontMatterForPageIsCreatedEvent
+        // have full request context.
+        $frontMatter = $this->metadataService->generateFrontMatter(
+            $html,
+            $pageRecord,
+            $fallbackUrl,
+            $pageInformation instanceof PageInformation ? $pageInformation : null,
+            $request,
+        );
 
         // Get page title for H1 (from og:title, title tag, or page record)
         $pageTitle = $this->extractPageTitle($html, $pageRecord);
 
+        $buildHtmlConverterEvent = new BuildHtmlMarkdownConverterEvent($request);
+        if ($site instanceof Site) {
+            $removeElements = (string)$site->getSettings()->get('ai_bots_love_markdown.removeElements', '');
+            if ($removeElements !== '') {
+                $buildHtmlConverterEvent->mergeOptions(['remove_nodes' => $removeElements]);
+            }
+        }
+        $this->eventDispatcher->dispatch($buildHtmlConverterEvent);
+        $converter = $buildHtmlConverterEvent->getHtmlConverter();
+
         // Convert HTML to Markdown
-        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl);
+        $markdownContent = $pageTitle . $this->htmlToMarkdownService->convert($content, $baseUrl, $converter);
 
         // Dispatch event to allow modification of the markdown output
         $event = $this->eventDispatcher->dispatch(
@@ -168,17 +218,119 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
     private function extractMainContent(string $html): string
     {
-        // Try to extract <main> content first
+        // Priority 1: explicit content region between markdown-start/end markers
+        $markerContent = $this->extractBetweenMarkers($html);
+        if ($markerContent !== null) {
+            return $markerContent;
+        }
+
+        // Priority 2: <main> content
         if (preg_match('/<main[^>]*>(.*?)<\/main>/is', $html, $matches)) {
             return $matches[1];
         }
 
-        // Fallback to <body> content
+        // Priority 3: <body> content
         if (preg_match('/<body[^>]*>(.*?)<\/body>/is', $html, $matches)) {
             return $matches[1];
         }
 
         // Last resort: return the whole HTML
         return $html;
+    }
+
+    private function extractBetweenMarkers(string $html): ?string
+    {
+        $startPos = strpos($html, self::MARKER_START);
+        $endPos = strpos($html, self::MARKER_END);
+
+        if ($startPos === false || $endPos === false || $endPos <= $startPos) {
+            return null;
+        }
+
+        $contentStart = $startPos + strlen(self::MARKER_START);
+        return substr($html, $contentStart, $endPos - $contentStart);
+    }
+
+    /**
+     * Remove regions wrapped in <!-- markdown-exclude-start --> ... <!-- markdown-exclude-end -->.
+     * Depth-aware: nested exclude regions are handled correctly. Defensive against
+     * incomplete markers (missing end / end-before-start: nothing is removed).
+     */
+    private function removeExcludedSections(string $html): string
+    {
+        $result = $html;
+        $iterations = 0;
+        $maxIterations = 100;
+
+        while ($iterations < $maxIterations) {
+            $startPos = strpos($result, self::EXCLUDE_START);
+            if ($startPos === false) {
+                break;
+            }
+
+            $depth = 1;
+            $searchOffset = $startPos + strlen(self::EXCLUDE_START);
+            $endPos = false;
+
+            while ($depth > 0) {
+                $nextStart = strpos($result, self::EXCLUDE_START, $searchOffset);
+                $nextEnd = strpos($result, self::EXCLUDE_END, $searchOffset);
+
+                if ($nextEnd === false) {
+                    break 2;
+                }
+
+                if ($nextStart !== false && $nextStart < $nextEnd) {
+                    $depth++;
+                    $searchOffset = $nextStart + strlen(self::EXCLUDE_START);
+                } else {
+                    $depth--;
+                    if ($depth === 0) {
+                        $endPos = $nextEnd;
+                    }
+                    $searchOffset = $nextEnd + strlen(self::EXCLUDE_END);
+                }
+            }
+
+            if ($endPos === false) {
+                break;
+            }
+
+            $before = substr($result, 0, $startPos);
+            $after = substr($result, $endPos + strlen(self::EXCLUDE_END));
+            $result = $before . $after;
+
+            $iterations++;
+        }
+
+        return $result;
+    }
+
+    private function stripMarkers(string $html): string
+    {
+        return str_replace(
+            [self::MARKER_START, self::MARKER_END, self::EXCLUDE_START, self::EXCLUDE_END],
+            '',
+            $html
+        );
+    }
+
+    /**
+     * Remove the <link rel="alternate" type="text/markdown"> tag from the HTML
+     * response so user agents don't follow a dead markdown URL for excluded pages.
+     */
+    private function stripDiscoveryLink(ResponseInterface $response): ResponseInterface
+    {
+        $html = (string)$response->getBody();
+        $stripped = preg_replace(self::MARKDOWN_LINK_PATTERN, '', $html);
+        if ($stripped === null || $stripped === $html) {
+            return $response;
+        }
+
+        $body = new Stream('php://temp', 'rw');
+        $body->write($stripped);
+        $body->rewind();
+
+        return $response->withBody($body)->withoutHeader('Content-Length');
     }
 }

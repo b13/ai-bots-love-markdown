@@ -37,6 +37,9 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
 
     public const CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE = 'ai-bots-love-markdown.contentNegotiationEnabled';
 
+    public function __construct(private readonly MarkdownPageType $markdownPageType)
+    {}
+
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!$this->isEnabled($request)) {
@@ -61,9 +64,10 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
 
     private function wantsMarkdown(ServerRequestInterface $request): bool
     {
-        // Check for type=2026 query parameter
+        // Check for type=2026 (or whatever configured) query parameter
         $queryParams = $request->getQueryParams();
-        if (isset($queryParams['type']) && (int)$queryParams['type'] === MarkdownPageType::TYPE_NUM) {
+        $typeNum = $this->markdownPageType->getTypeNum($request->getAttribute('site'));
+        if (isset($queryParams['type']) && (int)$queryParams['type'] === $typeNum) {
             return true;
         }
 
@@ -81,7 +85,8 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
 
         // Check for /ai-bots-love.md suffix in path
         $path = $request->getUri()->getPath();
-        if (str_ends_with($path, '/' . MarkdownPageType::SUFFIX)) {
+        $suffix = $this->markdownPageType->getSuffix($request->getAttribute('site'));
+        if (str_ends_with($path, '/' . $suffix)) {
             return true;
         }
 
@@ -102,10 +107,10 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
     {
         $uri = $request->getUri();
         $path = $uri->getPath();
-
+        $suffix = $this->markdownPageType->getSuffix($request->getAttribute('site'));
         // Remove /ai-bots-love.md suffix from path
-        if (str_ends_with($path, '/' . MarkdownPageType::SUFFIX)) {
-            $path = substr($path, 0, -strlen('/' . MarkdownPageType::SUFFIX)) ?: '/';
+        if (str_ends_with($path, '/' . $suffix)) {
+            $path = substr($path, 0, -strlen('/' . $suffix)) ?: '/';
             $uri = $uri->withPath($path);
             $request = $request->withUri($uri);
         }
@@ -124,10 +129,10 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
         if ($routeResult instanceof SiteRouteResult) {
             $tail = $routeResult->getTail();
             // Remove /ai-bots-love.md suffix from tail
-            if (str_ends_with($tail, '/' . MarkdownPageType::SUFFIX)) {
-                $tail = substr($tail, 0, -strlen('/' . MarkdownPageType::SUFFIX));
-            } elseif (str_ends_with($tail, MarkdownPageType::SUFFIX)) {
-                $tail = substr($tail, 0, -strlen(MarkdownPageType::SUFFIX));
+            if (str_ends_with($tail, '/' . $suffix)) {
+                $tail = substr($tail, 0, -strlen('/' . $suffix));
+            } elseif (str_ends_with($tail, $suffix)) {
+                $tail = substr($tail, 0, -strlen($suffix));
             }
             $routeResult = new SiteRouteResult(
                 $uri,
