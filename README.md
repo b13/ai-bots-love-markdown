@@ -191,6 +191,22 @@ Both partials emit HTML comments (`<!-- markdown-start -->`,
 from regular page responses by a frontend middleware before they reach human
 visitors. Excludes can be **nested**.
 
+### Events
+
+The extension dispatches three PSR-14 events. Listen via the
+`#[AsEventListener]` attribute or by registering a listener in your
+extension's `Configuration/Services.yaml`. All events live under the
+`B13\AiBotsLoveMarkdown\Event\` namespace.
+
+| Event | Fired | Use case |
+|---|---|---|
+| `BuildHtmlMarkdownConverterEvent` | Before HTML → Markdown conversion runs | Add custom node converters, override `HtmlConverter` options |
+| `AfterFrontMatterForPageIsCreatedEvent` | After the YAML front-matter array is assembled from meta tags and the page record, before serialisation | Add, remove, or replace front-matter entries (e.g. enrich with domain-specific keys) |
+| `AfterMarkdownConversionEvent` | After Markdown content has been built, before the response is returned | Side effects on every Markdown delivery (e.g. `b13/ai-bot-tracker` writes a tracking row from this event) |
+
+See [Extending the YAML front matter](#extending-the-yaml-front-matter) below
+for a full `AfterFrontMatterForPageIsCreatedEvent` listener example.
+
 ### Extending the YAML front matter
 
 The default front matter is built from HTML meta tags and the page record. To
