@@ -30,7 +30,7 @@ dependencies:
 
 ### Site Settings
 
-The extension provides two settings that can be configured per site (both enabled by default):
+The extension provides the following settings that can be configured per site:
 
 | Setting                                          | Default                                              | Description                                                                                                                                                |
 |--------------------------------------------------|------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -40,6 +40,7 @@ The extension provides two settings that can be configured per site (both enable
 | `ai_bots_love_markdown.pageTypeTypeNum`          | `2026`                                               | PageType TypeNum for Markdown link                                                                                                                         |
 | `ai_bots_love_markdown.removeElements`           | `script style nav footer aside form iframe noscript` | Space-separated HTML tags stripped from the markdown output. `<header>` is intentionally not included — article-level `<header>` regions often hold the H1 |
 | `ai_bots_love_markdown.excludedDoktypes`         | `3,4,6,7,199,254,255`                                | Comma-separated page doktypes that never produce a Markdown alternate response. Default covers TYPO3 system doktypes (external link, shortcut, mountpoint, sysfolder, recycler, etc.) |
+| `ai_bots_love_markdown.cacheable`                | `true`                                               | Allow CDN / reverse-proxy caching of Markdown responses. Disable to force every hit through to the origin — required when you want to count AI-bot deliveries accurately (e.g. via `b13/ai-bot-tracker`). When `false`, `Cache-Control: private, no-store` is set on Markdown responses |
 
 To override these settings, add them to your site's `settings.yaml`:
 
@@ -50,6 +51,7 @@ ai_bots_love_markdown.pageTypeTypeNum: 1778074315
 ai_bots_love_markdown.pageTypeSuffix: 'foo.md'
 ai_bots_love_markdown.removeElements: 'script style nav footer aside form iframe noscript header'
 ai_bots_love_markdown.excludedDoktypes: '3,4,6,7,199,254,255,37,38,41'
+ai_bots_love_markdown.cacheable: false
 ```
 
 ### Per-page opt-out
@@ -60,6 +62,20 @@ inverted in the BE so the toggle reads as "disable"). When the toggle is turned 
 `<link rel="alternate">` discovery tag is stripped from the HTML response and any direct
 request to `.md` / `Accept: text/markdown` returns the regular HTML.
 
+
+### Caching and content negotiation
+
+Markdown responses share the URL of the HTML page when `Accept: text/markdown` is
+used. To prevent reverse proxies from serving a cached HTML response to a Markdown
+requester (or vice versa), the middleware adds a `Vary: Accept` header to every
+response that goes through a site with content negotiation enabled — regardless
+of whether the current request asked for Markdown.
+
+By default (`cacheable: true`), TYPO3's page-level `Cache-Control` is preserved
+on the Markdown response, so the CDN may cache. If you need every Markdown
+delivery to reach the origin — typically to track bot consumption — set
+`cacheable: false` and the response is sent with `Cache-Control: private,
+no-store`.
 
 ## Usage
 
@@ -190,6 +206,22 @@ Both partials emit HTML comments (`<!-- markdown-start -->`,
 `<!-- markdown-exclude-start -->`, …) that survive caching and are stripped
 from regular page responses by a frontend middleware before they reach human
 visitors. Excludes can be **nested**.
+
+### Events
+
+The extension dispatches three PSR-14 events. Listen via the
+`#[AsEventListener]` attribute or by registering a listener in your
+extension's `Configuration/Services.yaml`. All events live under the
+`B13\AiBotsLoveMarkdown\Event\` namespace.
+
+| Event | Fired | Use case |
+|---|---|---|
+| `BuildHtmlMarkdownConverterEvent` | Before HTML → Markdown conversion runs | Add custom node converters, override `HtmlConverter` options |
+| `AfterFrontMatterForPageIsCreatedEvent` | After the YAML front-matter array is assembled from meta tags and the page record, before serialisation | Add, remove, or replace front-matter entries (e.g. enrich with domain-specific keys) |
+| `AfterMarkdownConversionEvent` | After Markdown content has been built, before the response is returned | Side effects on every Markdown delivery (e.g. `b13/ai-bot-tracker` writes a tracking row from this event) |
+
+See [Extending the YAML front matter](#extending-the-yaml-front-matter) below
+for a full `AfterFrontMatterForPageIsCreatedEvent` listener example.
 
 ### Extending the YAML front matter
 

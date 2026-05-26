@@ -23,3 +23,7 @@ settings:
     type: string
     default: '3,4,6,7,199,254,255'
     label: 'Comma-separated page doktypes that never produce a Markdown alternate response (default: standard TYPO3 system doktypes)'
+  ai_bots_love_markdown.cacheable:
+    type: bool
+    default: true
+    label: 'Allow CDN/reverse-proxy caching of Markdown responses (disable to track every hit at the origin)'
