@@ -22,7 +22,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\Stream;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Frontend\Page\PageInformation;
@@ -53,7 +52,7 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $isMarkdownRequest = (bool)$request->getAttribute(MarkdownRequestMiddleware::MARKER_ATTRIBUTE);
+        $isMarkdownRequest = (bool)$request->getAttribute(MarkdownRequestMiddleware::MARKDOWN_REQUESTED_ATTRIBUTE);
 
         // Let the normal page render
         $response = $handler->handle($request);
@@ -61,6 +60,14 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // We only ever touch HTML responses.
         if (!str_contains($response->getHeaderLine('Content-Type'), 'text/html')) {
             return $response;
+        }
+
+        // Signal to caches that this URL varies by Accept so a reverse proxy cannot
+        // cross-serve a cached HTML response to a markdown requester (or vice versa).
+        // Applies to every HTML response on a content-negotiation-enabled site,
+        // including those that will not be converted to markdown.
+        if ($request->getAttribute(MarkdownRequestMiddleware::CONTENT_NEGOTIATON_ENABLED_ATTRIBUTE)) {
+            $response = $response->withHeader('Vary', 'Accept');
         }
 
         // Per-page / per-doktype exclusion check runs for EVERY HTML response — not
@@ -95,19 +102,30 @@ final readonly class MarkdownResponseMiddleware implements MiddlewareInterface
         // Convert to markdown
         $markdown = $this->convertToMarkdown($request, $html);
 
-        // Return markdown response
         $body = new Stream('php://temp', 'rw');
         $body->write($markdown);
         $body->rewind();
 
-        return new Response(
-            $body,
-            200,
-            [
-                'Content-Type' => 'text/markdown; charset=utf-8',
-                'X-Robots-Tag' => 'noindex',
-            ]
-        );
+        // Reassign the PSR-7 chain — every withX() returns a new instance. We swap
+        // the body on the existing response so the page's Cache-Control flows
+        // through (a CDN can then cache the markdown the same way it caches the
+        // HTML). Drop the stale Content-Length: the swapped body has a different
+        // length and HTTP/2 clients abort the stream otherwise.
+        $response = $response
+            ->withBody($body)
+            ->withStatus(200)
+            ->withHeader('Content-Type', 'text/markdown; charset=utf-8')
+            ->withHeader('X-Robots-Tag', 'noindex')
+            ->withoutHeader('Content-Length');
+
+        // Optional cache override: sites that need every markdown delivery to reach
+        // the origin (e.g. for AI-bot tracking via b13/ai-bot-tracker) can opt out
+        // by setting `ai_bots_love_markdown.cacheable: false`.
+        if ($site instanceof Site && !(bool)$site->getSettings()->get('ai_bots_love_markdown.cacheable', true)) {
+            $response = $response->withHeader('Cache-Control', 'private, no-store');
+        }
+
+        return $response;
     }
 
     private function convertToMarkdown(ServerRequestInterface $request, string $html): string
