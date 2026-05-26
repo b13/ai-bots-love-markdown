@@ -97,7 +97,7 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
     {
         $site = $request->getAttribute('site');
         if (!$site instanceof Site) {
-            return true;
+            return false;
         }
 
         return (bool)$site->getSettings()->get('ai_bots_love_markdown.enableContentNegotiation', true);
