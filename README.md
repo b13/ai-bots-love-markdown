@@ -177,15 +177,38 @@ For best results, wrap your main content in a `<main>` element:
 </body>
 ```
 
-### Excluding Content from Markdown
+### Markdown Include / Exclude Markers
 
 Beyond the `<main>` selection and the configurable `removeElements` list, you
-can mark template regions explicitly via two bundled Fluid partials. They are
-auto-registered through the site set, so no `partialRootPaths` setup is
-required.
+can mark template regions explicitly. This gives editors and integrators
+fine-grained control over what ends up in the Markdown representation, without
+affecting the HTML page that humans see.
 
-Wrap a region you want **excluded** from the markdown output (teasers,
-related-article boxes, breadcrumbs, CTAs):
+Two bundled Fluid partials do the work. They are auto-registered through the
+site set, so no `partialRootPaths` setup is required — just `<f:render>` them.
+
+#### `MarkdownInclude` — explicitly mark the content region
+
+Wraps the region that should become the Markdown body. Use this when
+`<main>`-based detection is not good enough — e.g. there is no `<main>`
+element, or `<main>` contains too much (sidebars, related teasers, in-page
+navigation).
+
+```html
+<f:render partial="MarkdownInclude" contentAs="content">
+    <article>… the real article content …</article>
+</f:render>
+```
+
+When include markers are present, **everything outside them is ignored** for
+the Markdown output, including content that would otherwise be picked up from
+`<main>` or `<body>`.
+
+#### `MarkdownExclude` — cut a region out of the Markdown
+
+Wraps a region that should *not* appear in the Markdown output even though it
+lives inside the content area — teasers, related-article boxes, breadcrumbs,
+CTAs, cookie notices, share buttons.
 
 ```html
 <f:render partial="MarkdownExclude" contentAs="content">
@@ -193,19 +216,64 @@ related-article boxes, breadcrumbs, CTAs):
 </f:render>
 ```
 
-Or **explicitly mark the main content region** (overrides `<main>` detection,
-useful when `<main>` is missing or contains too much):
+Exclude regions can be **nested**, and they can sit inside an include region.
+Each `MarkdownExclude` block is removed as a whole; the surrounding content is
+kept.
 
-```html
-<f:render partial="MarkdownInclude" contentAs="content">
-    <article>… real content …</article>
-</f:render>
-```
+#### How content is selected
 
-Both partials emit HTML comments (`<!-- markdown-start -->`,
-`<!-- markdown-exclude-start -->`, …) that survive caching and are stripped
-from regular page responses by a frontend middleware before they reach human
-visitors. Excludes can be **nested**.
+When a Markdown response is built, the content region is resolved in this
+priority order (see `MarkdownResponseMiddleware`):
+
+1. **Include markers** — the content between `<!-- markdown-start -->` and
+   `<!-- markdown-end -->`, if both are present.
+2. **`<main>` element** — the contents of the first `<main>…</main>`.
+3. **`<body>` element** — the contents of `<body>…</body>` as a fallback.
+4. **Whole document** — last resort if none of the above match.
+
+After the region is selected, every `MarkdownExclude` block inside it is
+removed (depth-aware, so nested excludes are handled correctly), and any
+residual markers are stripped before the HTML is converted to Markdown.
+
+#### The markers themselves
+
+The partials emit plain HTML comments around their content:
+
+| Partial           | Opening marker                       | Closing marker                     |
+|-------------------|--------------------------------------|------------------------------------|
+| `MarkdownInclude` | `<!-- markdown-start -->`            | `<!-- markdown-end -->`           |
+| `MarkdownExclude` | `<!-- markdown-exclude-start -->`   | `<!-- markdown-exclude-end -->`   |
+
+Both partials only emit markers when their `content` is non-empty, so an empty
+region produces no markers at all.
+
+Because the markers are ordinary HTML comments, they **survive TYPO3's page
+cache** — they are baked into the cached page body together with your content.
+That is intentional: the Markdown conversion needs them on every request,
+including fully-cached ones.
+
+#### Markers never reach human visitors
+
+Markers must not be visible to regular visitors. The
+`StripMarkdownMarkersMiddleware` removes all four markers from every
+`text/html` response before it leaves the server. (Markdown responses already
+have the markers stripped during conversion, so they are skipped by the
+content-type check.)
+
+Note on robustness: marker stripping shortens the body, so the middleware also
+drops the stale `Content-Length` header — leaving it in place would otherwise
+cause an HTTP/2 `RST_STREAM` / `INTERNAL_ERROR` in browsers because the
+declared length no longer matches the bytes on the wire.
+
+#### Debugging which regions your templates emit
+
+To see the markers in the rendered HTML (e.g. to verify your partials are
+wired up correctly), append `?markdown-markers=1` to any page URL. The
+stripping middleware then leaves the markers in the HTML response.
+
+This bypass is gated for safety: it only works for **authenticated backend
+users** or in **non-production** application contexts, so the markers are never
+disclosed to anonymous crawlers on a production site.
 
 ### Events
 
