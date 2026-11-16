@@ -12,16 +12,22 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown\EventListener;
 
-use B13\AiBotsLoveMarkdown\MarkdownPageType;
+use B13\AiBotsLoveMarkdown\Routing\PageTypeMap;
 use TYPO3\CMS\Core\Attribute\AsEventListener;
 use TYPO3\CMS\Core\Configuration\Event\SiteConfigurationLoadedEvent;
+use TYPO3\CMS\Core\Site\SiteSettingsFactory;
 
 /**
- * Event Listener to automatically register the typeNum=2026, so it can be linked to.
- * Only possible if you have a RouteEnhancer of type "PageType" available obviously.
+ * Event Listener to automatically register the Markdown typeNum (default 2026)
+ * and, when llms.txt is enabled, the ".md" and "llms.txt" mappings, so they can
+ * be linked to. Only possible if you have a RouteEnhancer of type "PageType".
  */
 final class AddMarkdownPageTypeMapping
 {
+    public function __construct(
+        private readonly SiteSettingsFactory $siteSettingsFactory,
+    ) {}
+
     #[AsEventListener(identifier: 'ai-bots-love-markdown/add-pagetype-mapping')]
     public function __invoke(SiteConfigurationLoadedEvent $event): void
     {
@@ -47,22 +53,26 @@ final class AddMarkdownPageTypeMapping
                 continue;
             }
 
-            $suffix = $configuration['settings']['ai_bots_love_markdown.pageTypeSuffix'] ?? MarkdownPageType::SUFFIX;
-            $typeNum = $configuration['settings']['ai_bots_love_markdown.pageTypeTypeNum'] ?? MarkdownPageType::TYPE_NUM;
-
-            // Don't add if already configured (either by suffix or typeNum)
-            if (isset($enhancerConfig['map'][$suffix])) {
-                continue;
+            $map = PageTypeMap::apply($enhancerConfig['map'], $this->resolveSettings($event->getSiteIdentifier(), $configuration));
+            if ($map !== $enhancerConfig['map']) {
+                $configuration['routeEnhancers'][$name]['map'] = $map;
+                $event->setConfiguration($configuration);
             }
-            if (in_array($typeNum, $enhancerConfig['map'], true)) {
-                continue;
-            }
-
-
-            // Add our mapping
-            $configuration['routeEnhancers'][$name]['map'][$suffix] = $typeNum;
-            $event->setConfiguration($configuration);
             return;
         }
+    }
+
+    /**
+     * The event only carries config.yaml. Resolve the settings exactly like
+     * TYPO3 does at runtime (site sets, then settings.yaml, else inline
+     * settings) so the route map and runtime behaviour always agree.
+     */
+    private function resolveSettings(string $identifier, array $configuration): array
+    {
+        return $this->siteSettingsFactory->createSettings(
+            is_array($configuration['dependencies'] ?? null) ? $configuration['dependencies'] : [],
+            $identifier,
+            is_array($configuration['settings'] ?? null) ? $configuration['settings'] : [],
+        )->getAll();
     }
 }

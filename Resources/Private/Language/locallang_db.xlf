@@ -7,6 +7,24 @@
 				<source>Disable Markdown version</source>
 				<note>Backed by the affirmative `pages.markdown_version` column (default 1, rendered inverted in the BE). Turn the toggle on to suppress the Markdown alternate response and discovery link for this page.</note>
 			</trans-unit>
+			<trans-unit id="pages.llms_txt">
+				<source>llms.txt</source>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.description">
+				<source>Whether this page is linked in llms.txt. "Inherit" uses the setting of the parent page, so a setting on a folder applies to all its subpages.</source>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.inherit">
+				<source>Inherit from parent page</source>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.include">
+				<source>Include</source>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.optional">
+				<source>Include as optional</source>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.exclude">
+				<source>Do not include</source>
+			</trans-unit>
 		</body>
 	</file>
 </xliff>

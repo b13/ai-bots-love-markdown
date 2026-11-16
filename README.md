@@ -63,6 +63,109 @@ inverted in the BE so the toggle reads as "disable"). When the toggle is turned 
 request to `.md` / `Accept: text/markdown` returns the regular HTML.
 
 
+### llms.txt
+
+The extension can generate an [llms.txt](https://llmstxt.org/) per site
+language: a short, curated index that tells AI agents which pages matter and
+links to their Markdown versions. It is off by default.
+
+Enable it in the site settings (backend: Sites → Settings, or `settings.yaml`):
+
+```yaml
+ai_bots_love_markdown.llmsTxt.enabled: true
+# optional
+ai_bots_love_markdown.llmsTxt.excludedDoktypes: '24,33'   # e.g. news and person detail pages
+ai_bots_love_markdown.llmsTxt.title: 'My Organisation'     # default: root page title
+ai_bots_love_markdown.llmsTxt.description: 'What we do.'  # default: root page description
+ai_bots_love_markdown.llmsTxt.typeNum: 2027
+```
+
+The file is then available at `/llms.txt` and `/<language-base>/llms.txt`
+(only on the site root, everywhere else 404). If the site root is a shortcut,
+TYPO3 redirects to `/<shortcut-target>/llms.txt`, which is served as well.
+
+The settings are resolved like any other site setting (site sets, then the
+site's `settings.yaml`, otherwise the `settings` block in `config.yaml`).
+
+| Setting                                          | Default | Description                                                                                  |
+|--------------------------------------------------|---------|----------------------------------------------------------------------------------------------|
+| `ai_bots_love_markdown.llmsTxt.enabled`          | `false` | Generate llms.txt and serve Markdown under `<page-path>.md`                                  |
+| `ai_bots_love_markdown.llmsTxt.typeNum`          | `2027`  | PageType TypeNum for llms.txt                                                                |
+| `ai_bots_love_markdown.llmsTxt.excludedDoktypes` | `''`    | Doktypes never listed in llms.txt, in addition to `excludedDoktypes`                         |
+| `ai_bots_love_markdown.llmsTxt.title`            | `''`    | H1 of the file; empty uses the site root page title                                          |
+| `ai_bots_love_markdown.llmsTxt.description`      | `''`    | Summary below the H1; empty uses the site root page description                              |
+
+#### Requirements
+
+A `PageType` route enhancer is required (as for the `.md` URLs). For the root
+page to get `/index.md` instead of `/.md`, set `index: 'index'`:
+
+```yaml
+routeEnhancers:
+  PageTypeSuffix:
+    type: PageType
+    default: ''
+    index: 'index'
+    map:
+      'sitemap.xml': 1533906435
+```
+
+The extension adds the `.md`, `ai-bots-love.md` and `llms.txt` entries to the
+map automatically.
+
+#### Markdown URLs
+
+While llms.txt is enabled, Markdown URLs use the page path plus `.md`
+(`/about-us/locations.md`, root: `/index.md`). Discovery tags and llms.txt
+links use this form; the `pageTypeSuffix` setting is ignored for link
+generation. URLs with the old suffix (`/about-us/locations/ai-bots-love.md`)
+keep working.
+
+#### Which pages are listed
+
+A page is listed unless:
+
+- its doktype is in `excludedDoktypes` or `llmsTxt.excludedDoktypes`,
+- "Exclude from search" (`no_search`) or "noindex" (`no_index`) is set,
+- its Markdown version is disabled,
+- the page property **llms.txt** (effective value) is "Do not include",
+- it is not visible to anonymous visitors or not available in the requested
+  language (missing translation with strict language fallback, "hide page if
+  no translation" / "hide default language" in the page's language settings).
+
+The page property **llms.txt** (tab Behaviour, next to "Disable Markdown
+version") has four values: *Inherit from parent page* (default), *Include*,
+*Include as optional* and *Do not include*. The value inherits down the page
+tree, so setting a folder (e.g. a footer or landing page folder) to *Do not
+include* removes all its pages at once, and a single page inside it can be set
+back to *Include*. The field is also shown on folders for this reason, and it
+is only shown when llms.txt is enabled for the site. Pages below a backend user
+section (and the recycler) inherit *Do not include*; set a subpage explicitly
+to *Include* to list it anyway. The other rules above apply per page and cannot
+be overridden by the property.
+
+#### Output
+
+```markdown
+# <title>
+
+> <description>
+
+## <level-1 page>
+
+- [<level-1 page>](https://example.com/about-us.md): <page description>
+- [<subpage, any depth>](https://example.com/about-us/locations.md): <page description>
+
+## Optional
+
+- [<page set to "Include as optional">](https://example.com/press.md)
+```
+
+Sections are the pages on the first level below the site root; all listed
+pages below them go into their section in page tree order. The note behind a
+link is the page description (fallback: abstract). The file is cached in the
+page cache and invalidated when pages in the tree are edited.
+
 ### Caching and content negotiation
 
 Markdown responses share the URL of the HTML page when `Accept: text/markdown` is
