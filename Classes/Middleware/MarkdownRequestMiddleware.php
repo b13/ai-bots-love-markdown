@@ -12,7 +12,9 @@ declare(strict_types=1);
 
 namespace B13\AiBotsLoveMarkdown\Middleware;
 
+use B13\AiBotsLoveMarkdown\LlmsTxt\LlmsTxtSettings;
 use B13\AiBotsLoveMarkdown\MarkdownPageType;
+use B13\AiBotsLoveMarkdown\Routing\MarkdownPath;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -83,14 +85,26 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
             }
         }
 
-        // Check for /ai-bots-love.md suffix in path
-        $path = $request->getUri()->getPath();
-        $suffix = $this->markdownPageType->getSuffix($request->getAttribute('site'));
-        if (str_ends_with($path, '/' . $suffix)) {
+        // Check for /ai-bots-love.md suffix or (llms.txt enabled) <page>.md in path
+        if ($this->stripMarkdownPath($request->getUri()->getPath(), $request) !== null) {
             return true;
         }
 
         return false;
+    }
+
+    private function stripMarkdownPath(string $path, ServerRequestInterface $request): ?string
+    {
+        $site = $request->getAttribute('site');
+        if (!$site instanceof Site) {
+            return null;
+        }
+
+        return MarkdownPath::strip(
+            $path,
+            $this->markdownPageType->getSuffix($site),
+            LlmsTxtSettings::fromSite($site)->enabled,
+        );
     }
 
     private function isEnabled(ServerRequestInterface $request): bool
@@ -107,11 +121,10 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
     {
         $uri = $request->getUri();
         $path = $uri->getPath();
-        $suffix = $this->markdownPageType->getSuffix($request->getAttribute('site'));
-        // Remove /ai-bots-love.md suffix from path
-        if (str_ends_with($path, '/' . $suffix)) {
-            $path = substr($path, 0, -strlen('/' . $suffix)) ?: '/';
-            $uri = $uri->withPath($path);
+        // Remove /ai-bots-love.md suffix or .md extension from path
+        $cleanedPath = $this->stripMarkdownPath($path, $request);
+        if ($cleanedPath !== null) {
+            $uri = $uri->withPath($cleanedPath);
             $request = $request->withUri($uri);
         }
 
@@ -128,12 +141,8 @@ final readonly class MarkdownRequestMiddleware implements MiddlewareInterface
         $routeResult = $request->getAttribute('routing');
         if ($routeResult instanceof SiteRouteResult) {
             $tail = $routeResult->getTail();
-            // Remove /ai-bots-love.md suffix from tail
-            if (str_ends_with($tail, '/' . $suffix)) {
-                $tail = substr($tail, 0, -strlen('/' . $suffix));
-            } elseif (str_ends_with($tail, $suffix)) {
-                $tail = substr($tail, 0, -strlen($suffix));
-            }
+            // Remove /ai-bots-love.md suffix or .md extension from tail
+            $tail = $this->stripMarkdownPath($tail, $request) ?? $tail;
             $routeResult = new SiteRouteResult(
                 $uri,
                 $routeResult->getSite(),

@@ -17,3 +17,19 @@ page.headerData.1736000 {
 # without requiring manual partialRootPaths configuration in their site set.
 lib.contentElement.partialRootPaths.1736001 = EXT:ai_bots_love_markdown/Resources/Private/Partials/
 page.10.partialRootPaths.1736001 = EXT:ai_bots_love_markdown/Resources/Private/Partials/
+
+# llms.txt (https://llmstxt.org/) on the site root, mapped to /llms.txt by the
+# PageType route enhancer. The controller answers 404 unless
+# ai_bots_love_markdown.llmsTxt.enabled is set and the page is the site root.
+aiBotsLoveMarkdownLlmsTxt = PAGE
+aiBotsLoveMarkdownLlmsTxt {
+    typeNum = {$ai_bots_love_markdown.llmsTxt.typeNum}
+    config {
+        disableAllHeaderCode = 1
+        additionalHeaders.10.header = Content-Type: text/plain; charset=utf-8
+        admPanel = 0
+        debug = 0
+    }
+    10 = USER
+    10.userFunc = B13\AiBotsLoveMarkdown\LlmsTxt\LlmsTxtController->render
+}

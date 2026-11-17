@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.0" xmlns:t3="http://typo3.org/schemas/xliff">
+	<file source-language="en" target-language="de" datatype="plaintext" original="EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf" date="2026-11-16T00:00:00Z" product-name="ai_bots_love_markdown">
+		<header/>
+		<body>
+			<trans-unit id="pages.markdown_version">
+				<source>Disable Markdown version</source>
+				<target>Markdown-Version deaktivieren</target>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt">
+				<source>llms.txt</source>
+				<target>llms.txt</target>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.description">
+				<source>Whether this page is linked in llms.txt. "Inherit" uses the setting of the parent page, so a setting on a folder applies to all its subpages.</source>
+				<target>Ob diese Seite in der llms.txt verlinkt wird. „Erben“ übernimmt die Einstellung der übergeordneten Seite – eine Einstellung auf einem Ordner gilt so für alle Unterseiten.</target>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.inherit">
+				<source>Inherit from parent page</source>
+				<target>Von übergeordneter Seite erben</target>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.include">
+				<source>Include</source>
+				<target>Aufnehmen</target>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.optional">
+				<source>Include as optional</source>
+				<target>Als optional aufnehmen</target>
+			</trans-unit>
+			<trans-unit id="pages.llms_txt.exclude">
+				<source>Do not include</source>
+				<target>Nicht aufnehmen</target>
+			</trans-unit>
+		</body>
+	</file>
+</xliff>
