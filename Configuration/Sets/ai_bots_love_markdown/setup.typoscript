@@ -19,8 +19,11 @@ lib.contentElement.partialRootPaths.1736001 = EXT:ai_bots_love_markdown/Resource
 page.10.partialRootPaths.1736001 = EXT:ai_bots_love_markdown/Resources/Private/Partials/
 
 # llms.txt (https://llmstxt.org/) on the site root, mapped to /llms.txt by the
-# PageType route enhancer. The controller answers 404 unless
-# ai_bots_love_markdown.llmsTxt.enabled is set and the page is the site root.
+# PageType route enhancer. Opt-in: the page type is only registered when
+# ai_bots_love_markdown.llmsTxt.enabled is set, so the typeNum stays free
+# otherwise. The controller additionally answers 404 unless the feature is
+# enabled and the page is the site root.
+[site("settings").get("ai_bots_love_markdown.llmsTxt.enabled")]
 aiBotsLoveMarkdownLlmsTxt = PAGE
 aiBotsLoveMarkdownLlmsTxt {
     typeNum = {$ai_bots_love_markdown.llmsTxt.typeNum}
@@ -33,3 +36,4 @@ aiBotsLoveMarkdownLlmsTxt {
     10 = USER
     10.userFunc = B13\AiBotsLoveMarkdown\LlmsTxt\LlmsTxtController->render
 }
+[END]

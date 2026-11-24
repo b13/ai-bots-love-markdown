@@ -67,7 +67,15 @@ request to `.md` / `Accept: text/markdown` returns the regular HTML.
 
 The extension can generate an [llms.txt](https://llmstxt.org/) per site
 language: a short, curated index that tells AI agents which pages matter and
-links to their Markdown versions. It is off by default.
+links to their Markdown versions.
+
+The feature is strictly opt-in and off by default. As long as
+`ai_bots_love_markdown.llmsTxt.enabled` is not set, updating the extension
+changes nothing: no `llms.txt` or `<page-path>.md` routes are added, the
+llms.txt page type (`typeNum` 2027) is not registered in TypoScript, and the
+page property **llms.txt** stays hidden in the backend. Only the database
+column `pages.llms_txt` is added by the schema update; it has no effect while
+the feature is disabled.
 
 Enable it in the site settings (backend: Sites → Settings, or `settings.yaml`):
 
