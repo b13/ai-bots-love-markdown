@@ -11,3 +11,10 @@ services:
   # which requires the service to be public in the container.
   B13\AiBotsLoveMarkdown\Backend\TcaCondition\HideOnExcludedDoktype:
     public: true
+
+  B13\AiBotsLoveMarkdown\Backend\TcaCondition\ShowLlmsTxtField:
+    public: true
+
+  # Called as TypoScript USER userFunc via GeneralUtility::makeInstance.
+  B13\AiBotsLoveMarkdown\LlmsTxt\LlmsTxtController:
+    public: true

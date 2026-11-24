@@ -27,3 +27,23 @@ settings:
     type: bool
     default: true
     label: 'Allow CDN/reverse-proxy caching of Markdown responses (disable to track every hit at the origin)'
+  ai_bots_love_markdown.llmsTxt.enabled:
+    type: bool
+    default: false
+    label: 'Generate llms.txt and serve Markdown under <page-path>.md'
+  ai_bots_love_markdown.llmsTxt.typeNum:
+    type: int
+    default: 2027
+    label: 'PageType TypeNum for llms.txt'
+  ai_bots_love_markdown.llmsTxt.excludedDoktypes:
+    type: string
+    default: ''
+    label: 'Comma-separated page doktypes never listed in llms.txt (in addition to excludedDoktypes)'
+  ai_bots_love_markdown.llmsTxt.title:
+    type: string
+    default: ''
+    label: 'llms.txt title (H1); empty uses the site root page title'
+  ai_bots_love_markdown.llmsTxt.description:
+    type: string
+    default: ''
+    label: 'llms.txt summary; empty uses the site root page description'

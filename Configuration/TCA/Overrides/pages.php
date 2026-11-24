@@ -37,12 +37,32 @@ call_user_func(static function (): void {
                 ],
             ],
         ],
+        'llms_txt' => [
+            'exclude' => true,
+            'label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.llms_txt',
+            'description' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.llms_txt.description',
+            // Inclusion in llms.txt is a structural decision, same for all languages.
+            'l10n_mode' => 'exclude',
+            // Shown on sysfolders too: the value inherits down the page tree.
+            'displayCond' => 'USER:B13\\AiBotsLoveMarkdown\\Backend\\TcaCondition\\ShowLlmsTxtField->match',
+            'config' => [
+                'type' => 'select',
+                'renderType' => 'selectSingle',
+                'default' => 0,
+                'items' => [
+                    ['label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.llms_txt.inherit', 'value' => 0],
+                    ['label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.llms_txt.include', 'value' => 1],
+                    ['label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.llms_txt.optional', 'value' => 2],
+                    ['label' => 'LLL:EXT:ai_bots_love_markdown/Resources/Private/Language/locallang_db.xlf:pages.llms_txt.exclude', 'value' => 3],
+                ],
+            ],
+        ],
     ];
 
     \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addTCAcolumns('pages', $additionalColumns);
     \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addToAllTCAtypes(
         'pages',
-        'markdown_version',
+        'markdown_version, llms_txt',
         '',
         'after:no_search',
     );
